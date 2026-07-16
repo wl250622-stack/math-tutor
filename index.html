@@ -1386,7 +1386,7 @@
     async function callGeminiAPI(promptText, base64Image = null) {
       // 如果本機有自訂金鑰，優先採用本機金鑰以解決離線/學校網域阻擋問題；否則使用平台注入的金鑰
       const finalKey = localCustomApiKey || apiKey || "";
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${finalKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${finalKey}`;
       
       let payload;
       const systemInstructionText = "你是一位國中數學金牌名師，正在使用溫柔幽默的『蘇格拉底教學引導法』。請務必遵循以下互動規律：1. 絕對不直接給出完整算式與答案。 2. 透過追問先修觀念（例如：分配律、完全平方等）或者給予一小步提示。 3. 在繁體中文回答中，數學公式一律使用標準 LaTeX 格式（內聯公式用 $ 包覆，例如 $x^2$，獨立公式用 $$ 包覆）。";
