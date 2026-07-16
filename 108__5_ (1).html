@@ -1,0 +1,2064 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <!-- iPhone 與各式行動裝置最佳視口與防自動變形縮放設定 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>五甲國中 - 108課綱數學專注自主講堂與智慧更新系統</title>
+  
+  <!-- 載入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 載入 Google 繁中字型 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  
+  <!-- 載入 KaTeX 數學公式排版引擎，用於呈現精美公式 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+  <!-- 🌟 載入 Firebase Compat (非模組版) 核心，完美支援 file:/// 本地下載直接雙擊執行 🌟 -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { font-family: 'Noto Sans TC', sans-serif; -webkit-font-smoothing: antialiased; }
+    .ios-scroll { -webkit-overflow-scrolling: touch; }
+    canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col pb-safe">
+
+  <!-- 1. 頂部導航列與自主學習進度追蹤 -->
+  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col lg:flex-row justify-between items-center gap-3">
+      
+      <!-- 標題與標籤 -->
+      <div class="flex items-center space-x-3 w-full lg:w-auto">
+        <div class="bg-slate-850 p-2.5 rounded-xl border border-slate-700 flex-shrink-0">
+          <svg class="w-6 h-6 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+        </div>
+        <div class="flex-1">
+          <div class="flex items-center space-x-2">
+            <span class="bg-teal-500/10 text-teal-400 px-2 py-0.5 rounded text-[10px] font-extrabold border border-teal-500/20">108課綱自主素養</span>
+            <span id="edition-badge" class="bg-teal-500 text-slate-950 px-2 py-0.5 rounded text-[10px] font-black">載入中...</span>
+          </div>
+          <h2 class="text-sm md:text-base font-black text-white mt-0.5">五甲國中自主數學點讀講堂</h2>
+        </div>
+      </div>
+
+      <!-- Google 雲端登入狀態列 -->
+      <div id="auth-status-bar" class="flex items-center gap-2 bg-slate-950/80 p-2 rounded-2xl border border-slate-800 text-xs w-full lg:w-auto justify-between lg:justify-start">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-rose-500 shrink-0" id="auth-indicator"></span>
+          <span id="auth-user-name" class="text-slate-300 font-bold max-w-[130px] truncate">訪客模式 (進度僅存本機)</span>
+        </div>
+        <div class="flex gap-1">
+          <button id="auth-login-btn" onclick="loginWithGoogle()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-2.5 py-1 rounded-xl transition text-[10px] active:scale-95 shadow">
+            👤 登入 Google
+          </button>
+          <button id="auth-logout-btn" onclick="logoutUser()" class="hidden bg-slate-800 hover:bg-slate-700 text-rose-400 font-bold px-2 py-1 rounded-xl transition text-[10px]">
+            登出
+          </button>
+        </div>
+      </div>
+
+      <!-- 個人自學進度 -->
+      <div class="flex items-center justify-between gap-4 bg-slate-950 p-2 rounded-2xl border border-slate-800 text-xs w-full lg:w-auto">
+        <div class="flex items-center space-x-2">
+          <div class="relative w-8 h-9 flex items-center justify-center">
+            <svg class="w-full h-full transform -rotate-90">
+              <circle cx="16" cy="18" r="13" stroke="currentColor" class="text-slate-800" stroke-width="2.5" fill="transparent" />
+              <circle id="progress-circle-fill" cx="16" cy="18" r="13" stroke="currentColor" class="text-teal-400 transition-all duration-500" stroke-width="2.5" fill="transparent" stroke-dasharray="81.6" stroke-dashoffset="81.6" />
+            </svg>
+            <span id="dashboard-percent" class="absolute text-[8px] font-black text-white">0%</span>
+          </div>
+          <div>
+            <div class="text-[9px] text-slate-400 font-bold">個人自學研讀進度</div>
+            <div class="text-[10px] font-mono text-teal-400 font-bold" id="dashboard-status">0 / 5 單元完成</div>
+          </div>
+        </div>
+        <button onclick="resetAllStudyProgress()" class="text-[9px] text-rose-400 hover:text-rose-300 font-bold border border-rose-950/40 bg-rose-950/10 px-1.5 py-0.5 rounded transition">重置進度</button>
+      </div>
+
+      <!-- 聯動選擇器 (年級、學期、章節、課程更新) -->
+      <div class="flex flex-wrap items-center gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-xs w-full lg:w-auto justify-end">
+        <select id="grade-select" onchange="onGradeOrSemesterChange()" class="bg-slate-900 text-white font-bold p-1 rounded border border-slate-700 focus:outline-none">
+          <option value="7">一年級 (國一)</option>
+          <option value="8" selected>二年級 (國二)</option>
+          <option value="9">三年級 (國三)</option>
+        </select>
+        <select id="semester-select" onchange="onGradeOrSemesterChange()" class="bg-slate-900 text-white font-bold p-1 rounded border border-slate-700 focus:outline-none">
+          <option value="1" selected>上學期</option>
+          <option value="2">下學期</option>
+        </select>
+        <select id="chapter-select" onchange="onChapterChange(this.value)" class="bg-slate-900 text-teal-400 font-bold p-1 rounded border border-slate-700 max-w-[130px] md:max-w-none focus:outline-none">
+        </select>
+        
+        <!-- 手動/拍照/線上更新課程按鈕 -->
+        <button onclick="openCourseManager()" class="bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-800 p-1 px-2 rounded-lg font-bold transition flex items-center gap-1">
+          <span>⚙️ 課程更新</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- 2. 系統智慧提示通知列 -->
+  <div id="notification-bar" class="bg-slate-900 border-b border-slate-800 px-4 py-2 text-xs text-slate-300 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <span class="bg-teal-500 text-white px-1.5 py-0.5 rounded text-[9px] font-bold">動態提示</span>
+      <span id="notification-text">講堂已準備就緒，智慧 Gemini 伴學服務已自動在背景啟用！</span>
+    </div>
+    <button onclick="document.getElementById('notification-bar').classList.add('hidden')" class="text-slate-400 font-bold">✕</button>
+  </div>
+
+  <!-- 3. 中央置名師幾何黑板 -->
+  <section class="max-w-7xl w-full mx-auto px-4 pt-4">
+    <div class="bg-slate-900 rounded-3xl border border-slate-800 p-4 shadow-2xl relative flex flex-col items-center">
+      <div class="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-teal-500 via-indigo-500 to-rose-500"></div>
+      
+      <div class="w-full flex flex-col sm:flex-row justify-between items-center mb-2 gap-2">
+        <h3 class="font-black text-white text-xs flex items-center space-x-1.5 self-start">
+          <span class="text-teal-400">👨‍🏫 五甲名師置中大黑板 (支援同步追隨與即時發光板書)</span>
+        </h3>
+        
+        <!-- 自動播放與解鎖按鈕並排 -->
+        <div class="flex flex-wrap items-center gap-2 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800 text-xs w-full sm:w-auto">
+          <button id="autoplay-btn" onclick="toggleAutoPlay()" class="bg-teal-600 hover:bg-teal-700 text-white py-1 px-2.5 rounded-lg font-bold transition flex items-center">
+            <span>🔊 自動播放</span>
+          </button>
+          
+          <!-- 解鎖下一步 (位於自動播放旁) -->
+          <button id="next-step-btn" onclick="handleNextStep()" disabled class="bg-slate-850 text-slate-500 border border-slate-800 cursor-not-allowed py-1 px-2.5 rounded-lg font-bold transition flex items-center">
+            <span id="btn-lock-text">🔒 尚未解鎖</span>
+          </button>
+          
+          <select id="voice-select" onchange="changeVoice(this.value)" class="bg-slate-900 border border-slate-800 rounded p-0.5 text-[10px] text-slate-300 max-w-[110px] focus:outline-none">
+            <option>加載語音包...</option>
+          </select>
+          <select id="rate-select" onchange="changeRate(this.value)" class="bg-slate-900 border border-slate-800 rounded p-0.5 text-[10px] focus:outline-none">
+            <option value="0.8">慢速</option>
+            <option value="1.0" selected>正常</option>
+            <option value="1.2">流暢</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="w-full bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden relative flex justify-center">
+        <canvas id="teacher-canvas" width="800" height="300" class="max-w-full h-auto bg-slate-950"></canvas>
+        <div id="drawing-indicator" class="hidden absolute bottom-16 left-3 bg-black/80 text-[10px] text-teal-300 px-2 py-0.5 rounded-lg flex items-center space-x-1">
+          <span class="w-1.5 h-1.5 bg-teal-400 rounded-full animate-ping"></span>
+          <span id="drawing-progress-text">老師板書中: 0%</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 下方分欄：左側講義點讀，右側複合功能面板 (草稿、小考、AI家教) -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 pt-2">
+    
+    <!-- 左側：點讀課堂講義 -->
+    <div class="lg:col-span-6 flex flex-col">
+      <div class="bg-slate-900 rounded-2xl border border-slate-800 p-4 shadow-xl flex flex-col justify-between h-full min-h-[460px]">
+        <div>
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+            <h3 class="font-black text-white text-sm flex items-center">📖 課本點讀內文 (點擊卡片聽講解)</h3>
+            <div class="flex space-x-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[10px]">
+              <button onclick="changeFontSize('text-sm')" class="px-1.5 py-0.5 font-bold text-slate-400">小</button>
+              <button onclick="changeFontSize('text-base')" class="px-1.5 py-0.5 font-bold bg-teal-600 text-white rounded">中</button>
+              <button onclick="changeFontSize('text-lg')" class="px-1.5 py-0.5 font-bold text-slate-400">大</button>
+            </div>
+          </div>
+          <div class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-[11px] text-teal-400 font-bold mb-2">
+            🎯 當前單元：<span id="current-chapter-title">---</span>
+            <div id="rounds-bar" class="flex flex-wrap gap-1 mt-1 text-[10px] text-slate-500"></div>
+          </div>
+        </div>
+
+        <div id="lecture-scroll-container" class="my-2 space-y-2 flex-1 overflow-y-auto max-h-[260px] pr-1 scroll-smooth ios-scroll">
+          <div id="step-badge" class="text-[9px] bg-slate-800 text-teal-400 font-extrabold px-2 py-0.5 rounded mb-1 inline-block">加載中...</div>
+          <div id="segments-container" class="space-y-2"></div>
+        </div>
+
+        <div class="space-y-2 pt-2 border-t border-slate-800">
+          <div class="bg-slate-950/80 p-2 rounded-xl border border-slate-800">
+            <div class="flex justify-between text-[11px] font-bold mb-1">
+              <span class="text-slate-400">👀 本講閱讀專注度檢測</span>
+              <span id="progress-percent" class="text-teal-400">0%</span>
+            </div>
+            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div id="progress-bar-fill" class="h-full bg-teal-500 transition-all" style="width: 0%;"></div>
+            </div>
+          </div>
+          <div class="flex justify-between items-center text-[10px]">
+            <div class="flex items-center space-x-1">
+              <span id="lock-icon">🔒</span><span id="lock-status-text" class="text-rose-400 font-bold">聽完全部段落解鎖下一步</span>
+            </div>
+            <div class="text-slate-400">進度: <strong id="current-step-display" class="text-white">1</strong> / <span id="total-steps-display">3</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右側：複合功能面板 -->
+    <div class="lg:col-span-6 flex flex-col">
+      <div class="bg-slate-900 p-1 rounded-2xl border border-slate-800 flex gap-1 mb-2">
+        <button id="tab-btn-practice" onclick="switchRightTab('practice')" class="flex-1 py-1.5 text-xs font-black rounded-xl transition bg-teal-600 text-white">✍️ 草稿板</button>
+        <button id="tab-btn-quiz" onclick="switchRightTab('quiz')" class="flex-1 py-1.5 text-xs font-black rounded-xl transition text-slate-400 hover:bg-slate-850">🏆 隨堂小考</button>
+        <button id="tab-btn-gemini" onclick="switchRightTab('gemini')" class="flex-1 py-1.5 text-xs font-black rounded-xl transition text-slate-400 hover:bg-slate-850 flex items-center justify-center gap-1">
+          <span class="animate-pulse">✨</span> Gemini 家教
+        </button>
+      </div>
+
+      <!-- TAB 1: 學生草稿畫布 -->
+      <div id="tab-panel-practice" class="bg-slate-900 rounded-2xl border border-slate-800 p-4 shadow-xl flex-1 flex flex-col justify-between space-y-2">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-1.5 text-xs text-slate-400">
+          <span>✍️ 同步隨堂計算草稿紙</span>
+          <button onclick="clearStudentCanvas()" class="text-[10px] text-rose-400 font-bold bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">清空</button>
+        </div>
+        <div class="flex items-center justify-between gap-2 text-[10px] bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+          <div class="flex items-center space-x-1.5">
+            <button onclick="setBrushColor('#38bdf8')" class="brush-color-btn w-3.5 h-3.5 rounded-full ring-2 ring-teal-500" style="background-color:#38bdf8;"></button>
+            <button onclick="setBrushColor('#f43f5e')" class="brush-color-btn w-3.5 h-3.5 rounded-full" style="background-color:#f43f5e;"></button>
+            <button onclick="setBrushColor('#10b981')" class="brush-color-btn w-3.5 h-3.5 rounded-full" style="background-color:#10b981;"></button>
+            <button onclick="setBrushColor('#eab308')" class="brush-color-btn w-3.5 h-3.5 rounded-full" style="background-color:#eab308;"></button>
+          </div>
+          <div class="flex items-center space-x-1">
+            <input type="range" min="1" max="8" value="3" oninput="changeBrushSize(this.value)" class="w-12 accent-teal-500" />
+            <span id="brush-size-display" class="text-slate-400 font-mono">3px</span>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 overflow-hidden bg-slate-850">
+          <canvas id="student-canvas" width="500" height="250" class="w-full h-auto aspect-[2/1]"></canvas>
+        </div>
+      </div>
+
+      <!-- TAB 2: 防弊盲點小測驗 -->
+      <div id="tab-panel-quiz" class="hidden bg-slate-900 rounded-2xl border border-slate-800 p-4 shadow-xl flex-1 flex flex-col justify-between space-y-2">
+        <div class="border-b border-slate-800 pb-1.5 flex justify-between items-center text-xs text-slate-400">
+          <span>🏆 階段盲點能力檢測小考</span>
+          <span id="quiz-score-badge" class="bg-indigo-950 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full text-[10px] font-bold">得分: 0 / 4</span>
+        </div>
+        <div id="quiz-card-container" class="flex-1 flex flex-col justify-between min-h-[280px] space-y-2"></div>
+      </div>
+
+      <!-- TAB 3: Gemini 雙向即時學講堂與拍照上傳 -->
+      <div id="tab-panel-gemini" class="hidden bg-slate-900 rounded-2xl border border-slate-800 p-4 shadow-xl flex-1 flex flex-col justify-between min-h-[340px] transition-all duration-300">
+        <div class="border-b border-slate-800 pb-1.5 flex justify-between items-center text-xs text-slate-400">
+          <span class="flex items-center gap-1 font-bold text-teal-400">🤖 Gemini 24H 雙向蘇格拉底 AI 引導家教</span>
+          <div class="flex items-center gap-2">
+            <button onclick="toggleGeminiFullscreen()" class="bg-indigo-950 hover:bg-indigo-900 text-indigo-400 text-[10px] border border-indigo-800 px-2 py-0.5 rounded font-black active:scale-95 transition-all">
+              <span id="gemini-fs-btn-txt">全螢幕投放 🗖</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 🌟 本地端金鑰遺失智慧診斷卡片 🌟 -->
+        <div id="gemini-key-missing-warning" class="hidden bg-amber-950/40 border border-amber-500/30 rounded-xl p-3 my-2 text-xs text-amber-200 fade-in">
+          <p class="font-bold flex items-center gap-1">⚠️ 偵測到您在下載後的本地端執行</p>
+          <p class="text-[11px] text-slate-300 mt-1 leading-normal">
+            在本地環境（或直接開啟 HTML 檔案）下，必須輸入您專屬的免費 Gemini API Key 才能連線對話與拍照解題。
+          </p>
+          <div class="flex gap-1.5 mt-2">
+            <input type="password" id="gemini-tab-key-input" placeholder="請貼上您的 API Key (AIzaSy...)" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+            <button onclick="saveKeyFromGeminiTab()" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-lg text-xs transition">儲存</button>
+          </div>
+          <p class="text-[9px] text-slate-500 mt-1">※ 金鑰僅儲存於您目前的瀏覽器本機 (LocalStorage) 中，安全不外洩。</p>
+        </div>
+
+        <!-- 對話紀錄 -->
+        <div id="gemini-chat-log" class="flex-1 overflow-y-auto space-y-2 my-2 p-2 bg-slate-950 rounded-xl max-h-[220px] text-xs ios-scroll transition-all duration-300">
+          <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 text-slate-300 max-w-[90%]">
+            ✨ 哈囉！我是你的 <strong>Gemini 數學引導家教</strong>。我已經完成 108 課綱與五甲國中專講系統的對話學習！<br>
+            當你遇到困難時，可以點擊左側「📷 拍照上傳」，或直接在對話框內輸入疑問。我會一步步引導你思考，讓你真正透徹理解核心概念喔！
+          </div>
+        </div>
+
+        <!-- 照片上傳預覽區 -->
+        <div id="gemini-img-preview-box" class="hidden p-1 bg-slate-950 border border-slate-800 rounded-xl mb-1 flex items-center gap-2">
+          <img id="gemini-thumb" class="w-12 h-12 object-cover rounded-lg border border-slate-700" src="" alt="preview">
+          <div class="flex-1 text-[10px]">
+            <span class="text-emerald-400 font-bold block">📷 題目相片已成功掛載</span>
+            <span class="text-slate-500">打字說明你的卡關點，或直接點擊發送</span>
+          </div>
+          <button onclick="cancelUploadedPhoto()" class="text-rose-400 font-bold text-xs px-2">✕</button>
+        </div>
+
+        <!-- 輸入與上傳 -->
+        <div class="flex items-center gap-2 pt-1 border-t border-slate-800">
+          <!-- 支援行動裝置原生拍照與相簿 -->
+          <input type="file" id="gemini-file-input" onchange="onPhotoSelected(this)" class="hidden" accept="image/*" capture="environment">
+          
+          <button onclick="document.getElementById('gemini-file-input').click()" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-xl text-base transition flex-shrink-0 active:scale-95" title="拍照或選擇照片">
+            📷
+          </button>
+          
+          <input type="text" id="gemini-user-input" onkeydown="if(event.key==='Enter') sendGeminiMessage()" placeholder="我有哪裡不太懂..." class="flex-1 bg-slate-950 text-white text-xs border border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-teal-500 placeholder-slate-600">
+          
+          <button id="gemini-send-btn" onclick="sendGeminiMessage()" class="bg-teal-600 hover:bg-teal-700 text-slate-950 font-black px-3 py-2 rounded-xl text-xs transition flex-shrink-0 active:scale-95">
+            提問
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- 手動/線上/拍照 課程更新管理彈出框 (Course Manager Modal) -->
+  <div id="course-manager-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto ios-scroll">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="font-black text-white text-base">⚙️ 108課綱雲端講堂課程更新中心</h3>
+        <button onclick="closeCourseManager()" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+      </div>
+
+      <!-- 🌟 API Key 進階設定區 -->
+      <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+        <div class="flex justify-between items-center">
+          <h4 class="text-xs font-black text-amber-400 flex items-center gap-1.5">
+            <span>🔧 智慧 API 離線/自訂連線設定</span>
+          </h4>
+          <span class="bg-amber-500/10 text-amber-400 text-[9px] font-mono px-1.5 py-0.5 rounded border border-amber-500/20">離線執行保護</span>
+        </div>
+        <p class="text-[11px] text-slate-400 leading-normal">
+          如果您是在學校網域被防火牆阻擋，或將此檔案<b>下載到本機/平板離線使用</b>，請在此處輸入您專屬的 Gemini API Key。此設定會與您的 Google 帳戶雲端安全加密同步。
+        </p>
+        <div class="flex gap-2 items-center">
+          <input type="password" id="custom-api-key-input" placeholder="請輸入您的 Gemini API Key (AIzaSy...)" class="flex-1 bg-slate-900 text-xs border border-slate-800 rounded-xl p-2 text-white focus:outline-none focus:border-amber-500">
+          <button onclick="saveCustomApiKey()" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs transition">
+            儲存金鑰
+          </button>
+        </div>
+        <p id="api-key-status" class="text-[9px] text-slate-500 italic">目前優先使用系統注入之安全通道</p>
+      </div>
+
+      <!-- 1. 拍照上傳一鍵自動生成課程區 -->
+      <div class="bg-gradient-to-r from-teal-950/40 to-indigo-950/40 border border-teal-500/20 p-4 rounded-2xl space-y-2">
+        <h4 class="text-xs font-black text-teal-400 flex items-center gap-1.5">
+          <span>📷 拍照一鍵自動生成講義與小考</span>
+          <span class="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">NEW 3.0</span>
+        </h4>
+        <p class="text-[11px] text-slate-400 leading-relaxed">可以直接對著課本、考卷或講義拍照上傳，Gemini 將智慧分析照片上的幾何、代數問題，並為您專屬訂製出一套結合多段語音點讀、黑板動態板書及測驗題的全新自訂單元！</p>
+        
+        <div class="flex items-center gap-3 pt-1">
+          <input type="file" id="course-photo-input" onchange="onCoursePhotoSelected(this)" class="hidden" accept="image/*" capture="environment">
+          <button onclick="document.getElementById('course-photo-input').click()" class="bg-slate-850 hover:bg-slate-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95">
+            <span>📸 拍攝或選擇課本照片</span>
+          </button>
+          <div id="course-photo-status" class="text-[10px] text-slate-500 italic">尚未選擇照片</div>
+        </div>
+
+        <button id="photo-update-btn" onclick="photoUpdateCurriculum()" disabled class="w-full bg-teal-600 hover:bg-teal-700 text-slate-950 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed py-2 rounded-xl text-xs font-black transition active:scale-95 shadow-md">
+          🚀 根據照片一鍵生成全新點讀課程
+        </button>
+      </div>
+
+      <!-- 2. 線上文字更新區 -->
+      <div class="bg-indigo-950/20 border border-indigo-500/25 p-4 rounded-2xl space-y-2">
+        <h4 class="text-xs font-black text-indigo-400 flex items-center gap-1">🌐 線上課程文字自動更新 (同步會考素養題)</h4>
+        <p class="text-[11px] text-slate-400 leading-relaxed">免拍照。直接輸入任何文字關鍵字（例如：「根號心算技巧」、「108會考比例」），調配 AI 智慧生成專屬點讀講義。</p>
+        
+        <input type="text" id="online-update-keyword" placeholder="請輸入想生成的數學主題（例如：畢氏定理斜邊高、分配律）" class="w-full bg-slate-950 text-white text-xs border border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500">
+
+        <button id="online-update-btn" onclick="onlineUpdateCurriculum()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-xs font-black transition active:scale-95 shadow-md">
+          🚀 雲端文字同步更新課程
+        </button>
+      </div>
+
+      <div class="text-center text-slate-700 text-xs select-none">— 或者 手動自行編寫新增課程 —</div>
+
+      <!-- 3. 手動自訂新增課程 Form -->
+      <div class="space-y-3 text-xs">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-400 font-bold mb-1">目標年級</label>
+            <select id="man-grade" class="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl">
+              <option value="7">一年級 (國一)</option>
+              <option value="8" selected>二年級 (國二)</option>
+              <option value="9">三年級 (國三)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 font-bold mb-1">目標學期</label>
+            <select id="man-semester" class="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl">
+              <option value="1">上學期</option>
+              <option value="2">下學期</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-1">
+            <label class="block text-slate-400 font-bold mb-1">單元編號</label>
+            <input type="text" id="man-chap-id" placeholder="例如: 3-3" class="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-white">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-slate-400 font-bold mb-1">單元名稱</label>
+            <input type="text" id="man-chap-title" placeholder="例如: 3-3 二次項係數為1的十字交乘" class="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 font-bold mb-1">主題與 slide 分段簡述</label>
+          <input type="text" id="man-rounds" placeholder="主題分段：觀念前導, 實戰演練 (用半形逗號分隔)" class="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-white">
+        </div>
+
+        <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
+          <span class="text-teal-400 font-black block text-[11px]">手動輸入第一講課本卡片內容（點讀內容）</span>
+          <div>
+            <label class="block text-[10px] text-slate-500 font-bold mb-0.5">點讀顯示文字</label>
+            <textarea id="man-slide-text" rows="2" placeholder="例如：這堂課我們學習十字交乘..." class="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-white resize-none focus:outline-none"></textarea>
+          </div>
+          <div>
+            <label class="block text-[10px] text-slate-500 font-bold mb-0.5">語音講解腳本</label>
+            <textarea id="man-slide-voice" rows="2" placeholder="例如：同學們好，這堂課我們學習十字交乘..." class="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-white resize-none focus:outline-none"></textarea>
+          </div>
+        </div>
+
+        <button onclick="saveManualCourse()" class="w-full bg-teal-500 hover:bg-teal-600 text-slate-950 py-2.5 rounded-xl font-black transition active:scale-95">
+          💾 儲存並新增至我的課程選單
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🌟 自訂確認對話方塊 Modal (防止 iframe 安全性限制導致 confirm 阻斷或失效) 🌟 -->
+  <div id="custom-confirm-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4">
+    <div class="bg-slate-900 border border-slate-850 rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
+      <h4 class="font-black text-white text-base" id="confirm-modal-title">確定執行此操作嗎？</h4>
+      <p class="text-xs text-slate-400 leading-relaxed" id="confirm-modal-desc">此動作執行後將無法回復。</p>
+      <div class="flex gap-2 justify-end text-xs font-bold pt-2">
+        <button id="confirm-modal-cancel" class="bg-slate-800 hover:bg-slate-750 text-slate-300 px-4 py-2 rounded-xl transition">取消</button>
+        <button id="confirm-modal-confirm" class="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl transition">確定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 核心前端應用邏輯 (不具 type="module" 模組依賴，確保不因 Firebase 的延遲、跨域安全性或網路失敗而崩潰) -->
+  <script>
+    // ==========================================
+    //   雲端 Hook 預設佔位符 (若 Firebase 載入則自動覆蓋)
+    // ==========================================
+    window.cloudSyncFunc = null;
+    window.isCloudSyncActive = false;
+    window.currentUser = null;
+
+    window.loginWithGoogle = function() {
+      setNotification("⚠️ 目前處於本地離線模式，不支援 Google 雲端登入。");
+    };
+    window.logoutUser = function() {
+      setNotification("⚠️ 目前處於本地離線模式。");
+    };
+
+    // ==========================================
+    //   全域變數與 108課綱 數學資料庫
+    // ==========================================
+    let currentChapter = "1-1"; 
+    let currentStep = 0; 
+    let currentSegmentIdx = -1;
+    let textFontSize = "text-base"; 
+    let playedSegments = {}; 
+    let isLocked = true;
+    let isAudioPlaying = false; 
+    let isChalkAnimating = false;
+    let speechRate = 1.0; 
+    let voices = []; 
+    let selectedVoiceName = "";
+    let drawProgress = 0; 
+    let animationFrameId = null;
+    let courseCompletionData = {};
+    let localCustomApiKey = localStorage.getItem('vj_math_custom_api_key') || "";
+    const apiKey = ""; // 執行環境會在運行時自動安全注入
+
+    // 草稿板控制
+    let isDrawing = false; 
+    let brushColor = '#38bdf8'; 
+    let brushSize = 3;
+    let lastX = 0; 
+    let lastY = 0;
+
+    // 分頁與測驗
+    let activeTab = "practice"; 
+    let quizIdx = 0; 
+    let selectedQuizOption = null;
+    let quizIsAnswered = false; 
+    let quizScore = 0;
+    let uploadedPhotoBase64 = null;
+    let isGeminiFullscreen = false;
+
+    const KANG_G8_S1 = {
+      "1-1": {
+        title: "1-1 乘法公式",
+        rounds: ["和的平方公式觀念", "拼圖面積幾何分割", "會考實戰 $103^2$ 演算"],
+        slides: [
+          {
+            stepName: "分配律與和的平方",
+            segments: [
+              { text: "國二數學最關鍵的第一步就是「乘法公式」。", voice: "國二數學最關鍵的第一步就是乘法公式。" },
+              { text: "我們在國一學過整數分配律：$(a+b)(c+d) = ac + ad + bc + bd$。", voice: "我們在國一學過整數分配律，括弧a加b乘以括弧c加d，展開後會等於ac加上ad加上bc加上bd。" },
+              { text: "展開後可以得到和的平方公式：$(a+b)^2 = a^2 + 2ab + b^2$。", voice: "展開之後，我們可以得到最經典的和的平方公式，也就是，a加b the平方，等於a的平方，加上二ab，再加上b的平方。" },
+              { text: "【老師提醒】：中間這一項是 $+2ab$，同學常粗心漏掉只寫 $a^2+b^2$，這在段考是會被扣大分的！", voice: "老師特別提醒你，中間這一項是正二ab，很多同學常忘記寫，只寫成a平方加上b平方，這在段考是會被扣大分的。" }
+            ]
+          },
+          {
+            stepName: "拼圖面積幾何分割",
+            segments: [
+              { text: "為什麼展開會多出 $2ab$ 呢？我們用「拼圖面積」來直觀感受！", voice: "為什麼展開之後，會平白無故多出二ab呢？我們用拼圖的面積來直觀感受一下。" },
+              { text: "一個邊長為 $a + b$ 的大正方形，其總面積就是 $(a+b)^2$。", voice: "想像一個大正方形，如果它的邊長是a加b。那麼這個大正方形的總面積，當然就是a加b的平方。" },
+              { text: "切成四塊計算：左上為 $a^2$，右下為 $b^2$，右上與左下兩塊長方形面積各為 $ab$。加總就是 $a^2 + 2ab + b^2$！", voice: "我們把它切成四塊，左上角面積是a平方，右下角面積是b平方，剩下兩塊長方形面積各是ab。四個數字拼在一起加總，剛好就是a平方，加上二ab，再加b平方。" }
+            ]
+          },
+          {
+            stepName: "會考實戰：計算 $103^2$",
+            segments: [
+              { text: "我們來動手做一道會考精選經典考題：求 $103^2$ 的快速心算值。", voice: "題目要算103的平方。如果直接硬乘很容易算錯，我們可以用乘法公式來心算。" },
+              { text: "拆解成 $(100 + 3)^2$。帶入公式，設 $a = 100$，$b = 3$。", voice: "第一步，我們把103拆解成括弧100加3的平方。這時候，我們把a當作100，b當作3。" },
+              { text: "計算得：$100^2 + 2 \\times 100 \\times 3 + 3^2 = 10000 + 600 + 9 = 10609$。", voice: "代入式子計算。100的平方是10000，加上2乘以100再乘以3，也就是600，最後加上3的平方也就是9。加起來答案就是10609。是不是非常神奇快速呢？" }
+            ]
+          }
+        ]
+      },
+      "1-2": {
+        title: "1-2 多項式的加減",
+        rounds: ["升冪與降冪排列", "同類項合併規則"],
+        slides: [
+          {
+            stepName: "升冪與降冪排列",
+            segments: [
+              { text: "多項式必須依照次數大小來排隊，這就是「降冪」排列。例如把 $2x + 3x^2 + 3$ 整理為 $3x^2 + 2x + 3$。", voice: "多項式的各個項，要按照x的次數大小來排隊。降冪排列就是從次數最高的項，排到最低的項。例如把2x，加上3x平方，加3，排成：3x平方，加上2x，再加3。" }
+            ]
+          },
+          {
+            stepName: "同類項合併",
+            segments: [
+              { text: "只有「次數相同、文字相同」的項才能相加減，稱為「同類項」。", voice: "在多項式加減中，只有次數相同、文字也相同的項才可以合在一起算，我們稱之為同類項。" },
+              { text: "例如：$(2x^2 + 3x + 1) + (x^2 - x + 5) \\rightarrow$ 合併得 $3x^2 + 2x + 6$。", voice: "例如2x平方加3x加1，加上，x平方減x加5。我們把同類項分組合併。2x平方加x平方等於3x平方。3x減x等於2x。1加5等於6。答案就是3x平方，加上2x，再加6。" }
+            ]
+          }
+        ]
+      },
+      "1-3": {
+        title: "1-3 多項式的乘除",
+        rounds: ["單項式乘法", "直式除法與缺項補0"],
+        slides: [
+          {
+            stepName: "單項式的乘法",
+            segments: [
+              { text: "單項式相乘時，係數乘以係數，文字乘以文字。例如：$(-7x) \\times 5x = -35x^2$。", voice: "單項式相乘時，口訣是：係數乘係數，文字乘文字。例如，負7x，乘以5x。係數負7乘以5等於負35。文字x乘以x就是x的平方。合併起來就是負35x平方。" }
+            ]
+          },
+          {
+            stepName: "直式除法與缺項補0",
+            segments: [
+              { text: "做多項式除法時，若遇到缺項，必須在直式中「補 0」，才不會排錯對位！", voice: "在做多項式的直式除法運算時，最容易錯的就是忘記排對位置。如果中間有缺項，一定要在缺項處補零。" },
+              { text: "例如 $3x^2 - 1$ 缺了一次項，直式中就要寫成 $3x^2 + 0x - 1$。", voice: "例如，被除式如果是3x平方減1，因為缺了一次項x，我們在直式中一定要寫成3x平方，加上0x，再減1。" }
+            ]
+          }
+        ]
+      },
+      "2-1": {
+        title: "2-1 平方根與近似值",
+        rounds: ["根號的由來", "完全平方數表"],
+        slides: [
+          {
+            stepName: "正方形與根號的由來",
+            segments: [
+              { text: "若正方形面積為 $a$，則其邊長就定義為 $\\sqrt{a}$，滿足 $(\\sqrt{a})^2 = a$ 的關係。", voice: "根號是怎麼來的呢？如果一個正方形的面積是a，則這個正方形的邊長，我們就定義為根號a。滿足根號a的平方，剛好就會等於a的關係。" }
+            ]
+          },
+          {
+            stepName: "背熟完全平方數",
+            segments: [
+              { text: "記熟 $11^2=121$, $12^2=144$, $13^2=169$，可以幫你快速化簡根號！", voice: "老師建議你，一定要記熟11到15的完全平方數，這能讓你在算根號化簡時非常快速。例如，11的平方是121，所以根號121就是11。12的平方是144，根號144就是12。" }
+            ]
+          }
+        ]
+      },
+      "2-2": {
+        title: "2-2 根式的運算",
+        rounds: ["最簡根式化簡", "分母有理化"],
+        slides: [
+          {
+            stepName: "最簡根式化簡",
+            segments: [
+              { text: "根號內若有完全平方數因數，就必須提至根號外。例如：$\\sqrt{12} = \\sqrt{4 \\times 3} = 2\\sqrt{3}$。", voice: "根式的化簡中，如果根號內部的數含有平方數的因數，我們就必須把它提出去。例如，根號12。我們可以把12拆成4乘以3，4剛好是2的平方，所以我們可以把2提到根號外，化簡出來就是2根號3。" }
+            ]
+          },
+          {
+            stepName: "分母有理化",
+            segments: [
+              { text: "分數的分母若含有根號，必須藉由擴分，將分母轉化為整數. 例如：$1 / \\sqrt{3} = \\sqrt{3} / 3$。", voice: "在數學的標準寫法中，分母是不可以留有根號的。我們必須進行擴分，把分母變成整數，這就叫做分母有理化。例如，根號三分之一。我們分子分母同時乘以根號三。分母就變成三，分子變成根號三。答案就是三分之根號三。" }
+            ]
+          }
+        ]
+      },
+      "2-3": {
+        title: "2-3 畢氏定理",
+        rounds: ["直角三角形定理", "斜邊上的高應用"],
+        slides: [
+          {
+            stepName: "兩股平方和等於斜邊平方",
+            segments: [
+              { text: "直角三角形中，兩條直角邊稱為「股」，長邊稱為「斜邊」。滿足 $a^2 + b^2 = c^2$。", voice: "直角三角形中，夾著直角的兩條短邊稱為股，直角正對面的長邊就是斜邊。這三條邊有一個不變的規律：兩股平方和等於斜邊平方。也就是，a平方加上b平方，等於斜邊c的平方。這就是著名的畢氏定理。" }
+            ]
+          },
+          {
+            stepName: "斜邊上的高公式",
+            segments: [
+              { text: "直角三角形中，斜邊上的高 = (兩直角邊的乘積) / 斜邊長度。", voice: "在段考跟會考中，有一個畢氏定理的終極常考應用，就是要求斜邊上的高。它的公式就是兩股乘積，除以斜邊長度。" },
+              { text: "例如兩直角邊為 $5$ 與 $12$，斜邊為 $13$。斜邊上的高 = $(5 \\times 12) / 13 = 60/13$。", voice: "舉例來說，兩股是5跟12，斜邊是13。那麼斜邊上的高，就是5乘以12，再除以13，算出來答案就是13分之60。這個公式超級好用，一定要學起來！" }
+            ]
+          }
+        ]
+      },
+      "3-1": {
+        title: "3-1 提公因式與公式解",
+        rounds: ["因式與倍式判別", "提公因式變號法則", "平方差因式分解"],
+        slides: [
+          {
+            stepName: "因式與倍式的判別",
+            segments: [
+              { text: "如果多項式 $A$ 能被多項式 $B$ 整除（餘式為 0），則 $A$ 是 $B$ 的倍式，$B$ 是 $A$ 的因式。", voice: "如果多項式A可以被B整除，除完之後餘式是零，我們就說A是B的倍式，B是A的因式。這和因數與倍數概念是一模一樣的。" }
+            ]
+          }
+        ]
+      },
+      "3-2": {
+        title: "3-2 十字交乘法",
+        rounds: ["二次項係數為1的分解", "二次項係數不為1的進階分解"],
+        slides: [
+          {
+            stepName: "二次項係數為 1 的十字交乘",
+            segments: [
+              { text: "分解 $x^2 + px + q$ 時，若能找到 $a$ 與 $b$ 滿足 $a+b = p$ 且 $ab = q$，即可分解成 $(x+a)(x+b)$。", voice: "十字交乘法是因式分解最核心的方法。當我們要分解二次項係數是1的多項式時，如果能找到兩個數a與b，相加等於中間項係數p，相乘等於常數項q，就可以寫成x加a乘以x加b。" }
+            ]
+          }
+        ]
+      },
+      "4-1": {
+        title: "4-1 因式分解解一元二次方程式",
+        rounds: ["一元二次方程式意義", "利用因式分解法求解"],
+        slides: [
+          {
+            stepName: "利用因式分解法求解",
+            segments: [
+              { text: "核心思想：若 $A \\times B = 0$，則 $A = 0$ 或 $B = 0$。", voice: "解一元二次方程式，最核心的想法就是：如果兩個式子相乘等於零，那麼這兩個式子其中之一必定是零。" }
+            ]
+          }
+        ]
+      },
+      "4-2": {
+        title: "4-2 配方法與公式解",
+        rounds: ["配方法核心步驟", "公式解與判別式"],
+        slides: [
+          {
+            stepName: "公式解與判別式的奧秘",
+            segments: [
+              { text: "萬用公式解：$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$。其中 $b^2 - 4ac$ 稱為「判別式 $D$」。", voice: "公式解就是，二a分之負b加減根號，b平方減四ac。這在會考是百分之百必用公式，一定要背到滾瓜爛熟！" }
+            ]
+          }
+        ]
+      },
+      "4-3": {
+        title: "4-3 一元二次方程式應用問題",
+        rounds: ["連續奇數平方和素養實戰"],
+        slides: [
+          {
+            stepName: "連續奇數平方和應用題",
+            segments: [
+              { text: "已知三個連續正奇數的平方和是 $875$，求這三個數。", voice: "題目說，有三個連續的正奇數，他們的平方和是八百七十五，請問這三個數是多少？" }
+            ]
+          }
+        ]
+      },
+      "5-1": {
+        title: "5-1 資料整理與統計圖表",
+        rounds: ["累積次數分配表", "相對次數與累積相對次數"],
+        slides: [
+          {
+            stepName: "累積次數分配折線圖",
+            segments: [
+              { text: "【段考大陷阱】：累積圖表描點時，點必須點在各組的「上限」位置，而非組中點！", voice: "請注意這是一個段考超常考的陷阱！在描點時，點一定要描在各組的上限，而不是組中點。因為只有到了上限，才能確定累積的人數都落在這個範圍內。" }
+            ]
+          }
+        ]
+      }
+    };
+
+    const DEFAULT_CURRICULUM_DATABASE = {
+      "7": { editionName: "翰林版", semesters: { "1": { "1-1": { title: "1-1 負數與絕對值", rounds: ["數線觀念", "絕對值意義"], slides: [{ stepName: "數線三要素", segments: [{ text: "數線必須具備三個要素：原點、正向、與單位長。", voice: "要在數線上畫出數字，必須具備數線三要素，分別是原點、正向、跟單位長。" }] }] } } } },
+      "8": { editionName: "康軒版", semesters: { "1": KANG_G8_S1 } },
+      "9": { editionName: "南一版", semesters: { "1": { "3-1": { title: "3-1 二次函數圖形", rounds: ["拋物線觀念"], slides: [{ stepName: "二次函數頂點", segments: [{ text: "二次函數 $y = x^2$ 的圖形是一條頂點在原點、開口向上的拋物線。", voice: "最基礎的二次函數圖形，在座標平面上是一條完美的拋物線，頂點就在原點零零。" }] }] } } } }
+    };
+
+    let CURRICULUM_DATABASE = {};
+
+    const DEFAULT_QUIZ_DATABASE = {
+      "8-1": [
+        {
+          question: "已知直角三角形的兩直角邊長度分別為 5 與 12。請問此三角形斜邊上的高是多少？",
+          options: ["(A) 60/13", "(B) 13/60", "(C) 60/17", "(D) 13"], answer: 0,
+          explainText: "斜邊長為 13 ($c = \\sqrt{5^2+12^2} = 13$)。斜邊上的高 = (兩直角邊相乘) / 斜邊 = $(5 \\times 12)/13 = 60/13$。",
+          voiceExplain: "利用畢氏定理求出斜邊是十三。斜邊上的高公式為兩股相乘除以斜邊，也就是五乘以十二除以十三，答案就是十三分之六十。正確答案選A。"
+        },
+        {
+          question: "將多項式 $9x^2 - 25$ 進行因式分解，其結果為下列何者？",
+          options: ["(A) (3x+5)(3x-5)", "(B) (3x-5)²", "(C) (9x+5)(9x-5)", "(D) (3x+25)(3x-1)"], answer: 0,
+          explainText: "套用平方差公式：$a^2 - b^2 = (a+b)(a-b)$。$9x^2 - 25 = (3x)^2 - 5^2 = (3x+5)(3x-5)$。",
+          voiceExplain: "套用平方差公式。九x平方是三x的整個平方，二十五是五的平方。公式展開得到三x加五乘以三x減五。答案選A。"
+        }
+      ]
+    };
+
+    let QUIZ_DATABASE = {};
+    const MEMORY_SESSION_KEY = 'vj_math_last_session_progress_v3';
+    let coursePhotoBase64 = null;
+
+    // --- 數學公式排版引擎自動渲染輔助 ---
+    function renderMath() {
+      try {
+        if (typeof renderMathInElement === 'function') {
+          renderMathInElement(document.body, {
+            delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$', right: '$', display: false}
+            ],
+            throwOnError: false
+          });
+        }
+      } catch (e) {
+        console.warn("KaTeX render failed:", e);
+      }
+    }
+
+    // --- 儲存與讀取 LocalStorage 進度與自訂課程 ---
+    function loadLocalProgress() {
+      try {
+        const savedCurriculum = localStorage.getItem('vj_math_curriculum_v3');
+        CURRICULUM_DATABASE = savedCurriculum ? JSON.parse(savedCurriculum) : JSON.parse(JSON.stringify(DEFAULT_CURRICULUM_DATABASE));
+      } catch(e) {
+        CURRICULUM_DATABASE = JSON.parse(JSON.stringify(DEFAULT_CURRICULUM_DATABASE));
+      }
+
+      try {
+        const savedQuizzes = localStorage.getItem('vj_math_quizzes_v3');
+        QUIZ_DATABASE = savedQuizzes ? JSON.parse(savedQuizzes) : JSON.parse(JSON.stringify(DEFAULT_QUIZ_DATABASE));
+      } catch(e) {
+        QUIZ_DATABASE = JSON.parse(JSON.stringify(DEFAULT_QUIZ_DATABASE));
+      }
+
+      try {
+        const savedTracker = localStorage.getItem('vj_math_tracker_v3');
+        courseCompletionData = savedTracker ? JSON.parse(savedTracker) : {"7-1":{}, "8-1":{}, "9-1":{}};
+      } catch(e) { courseCompletionData = {"7-1":{}, "8-1":{}, "9-1":{}}; }
+
+      refreshDashboardUI();
+    }
+
+    // 將進度儲存至雲端 (符合 RULE 1 嚴格路徑規則)
+    async function saveProgressToCloud() {
+      // 確保本地同步更新
+      localStorage.setItem('vj_math_tracker_v3', JSON.stringify(courseCompletionData));
+      localStorage.setItem('vj_math_curriculum_v3', JSON.stringify(CURRICULUM_DATABASE));
+      localStorage.setItem('vj_math_quizzes_v3', JSON.stringify(QUIZ_DATABASE));
+      
+      refreshDashboardUI();
+
+      if (typeof window.cloudSyncFunc === 'function') {
+        await window.cloudSyncFunc(courseCompletionData, CURRICULUM_DATABASE, QUIZ_DATABASE, localCustomApiKey);
+      }
+    }
+
+    // 雲端資料流入時的處理器 (由 Firebase 模組觸發)
+    window.handleCloudDataIncoming = function(cloudData) {
+      if (cloudData.courseCompletionData) {
+        courseCompletionData = cloudData.courseCompletionData;
+      }
+      if (cloudData.curriculumDatabase) {
+        CURRICULUM_DATABASE = cloudData.curriculumDatabase;
+      }
+      if (cloudData.quizDatabase) {
+        QUIZ_DATABASE = cloudData.quizDatabase;
+      }
+      if (cloudData.customApiKey) {
+        localCustomApiKey = cloudData.customApiKey;
+        const keyInput = document.getElementById('custom-api-key-input');
+        if (keyInput) keyInput.value = localCustomApiKey;
+        updateApiKeyIndicator();
+      }
+      
+      updateUI();
+      refreshDashboardUI();
+    };
+
+    function saveCourseDatabaseToLocal() {
+      saveProgressToCloud();
+    }
+
+    function saveLocalProgress() {
+      saveProgressToCloud();
+    }
+
+    function saveStudySessionMemory() {
+      try {
+        const grade = document.getElementById('grade-select').value;
+        const semester = document.getElementById('semester-select').value;
+        const sessionObj = {
+          grade: grade,
+          semester: semester,
+          chapter: currentChapter,
+          step: currentStep
+        };
+        localStorage.setItem(MEMORY_SESSION_KEY, JSON.stringify(sessionObj));
+      } catch(e) {}
+    }
+
+    // 🌟 自訂模擬 Confirm 彈窗，徹底防範 iframe 連線阻斷
+    function showCustomConfirm(title, desc, onConfirm) {
+      document.getElementById('confirm-modal-title').textContent = title;
+      document.getElementById('confirm-modal-desc').textContent = desc;
+      const modal = document.getElementById('custom-confirm-modal');
+      modal.classList.remove('hidden');
+      
+      const confirmBtn = document.getElementById('confirm-modal-confirm');
+      const cancelBtn = document.getElementById('confirm-modal-cancel');
+      
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        confirmBtn.onclick = null;
+        cancelBtn.onclick = null;
+      };
+      
+      confirmBtn.onclick = () => {
+        onConfirm();
+        cleanup();
+      };
+      cancelBtn.onclick = () => {
+        cleanup();
+      };
+    }
+
+    function resetAllStudyProgress() {
+      showCustomConfirm(
+        "確定清除所有數據？",
+        "這將清除您的本地與雲端學習進度、自選考卷紀錄並恢復 108 課綱官方講義數據，此動作無法回復。",
+        () => {
+          localStorage.removeItem('vj_math_curriculum_v3');
+          localStorage.removeItem('vj_math_quizzes_v3');
+          localStorage.removeItem('vj_math_tracker_v3');
+          localStorage.removeItem(MEMORY_SESSION_KEY);
+          playedSegments = {};
+          loadLocalProgress();
+          
+          document.getElementById('grade-select').value = "8";
+          document.getElementById('semester-select').value = "1";
+          onGradeOrSemesterChange();
+          setNotification("🔄 所有自學講義、隨堂進度已成功重置與刷新！");
+        }
+      );
+    }
+
+    function refreshDashboardUI() {
+      const grade = document.getElementById('grade-select').value;
+      const semester = document.getElementById('semester-select').value;
+      const key = `${grade}-${semester}`;
+      const activeCurriculum = TUTOR_CURRICULUM_FOR_ACTIVE();
+      const chaptersList = Object.keys(activeCurriculum);
+      if (chaptersList.length === 0) return;
+
+      let completedCount = 0;
+      chaptersList.forEach(chId => {
+        if (courseCompletionData[key]?.[chId]?.completed) completedCount++;
+      });
+
+      const percent = Math.round((completedCount / chaptersList.length) * 100);
+      const circleFill = document.getElementById('progress-circle-fill');
+      if (circleFill) circleFill.style.strokeDashoffset = 81.6 - (81.6 * percent) / 100;
+      document.getElementById('dashboard-percent').textContent = `${percent}%`;
+      document.getElementById('dashboard-status').textContent = `${completedCount} / ${chaptersList.length} 單元完成`;
+    }
+
+    // --- Web Speech API TTS 引擎最佳化 ---
+    function initSpeech() {
+      if (!window.speechSynthesis) return;
+      const loadVoices = () => {
+        voices = window.speechSynthesis.getVoices();
+        const select = document.getElementById('voice-select');
+        if (!select) return; select.innerHTML = '';
+        voices.forEach((v) => {
+          const option = document.createElement('option'); option.value = v.name;
+          option.textContent = `${v.name} (${v.lang})`;
+          if (v.lang === 'zh-TW' || v.lang.includes('TW') || v.name.includes('Siri')) {
+            option.selected = true; selectedVoiceName = v.name;
+          }
+          select.appendChild(option);
+        });
+      };
+      loadVoices(); window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+    function changeVoice(vName) { selectedVoiceName = vName; }
+    function changeRate(val) { speechRate = parseFloat(val); }
+
+    // --- 年級、學期聯動與防崩潰保護 ---
+    function onGradeOrSemesterChange() {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      isAudioPlaying = false;
+      currentSegmentIdx = -1;
+      updateAutoplayButtonState(false);
+
+      const grade = document.getElementById('grade-select').value;
+      const semester = document.getElementById('semester-select').value;
+      
+      loadLocalProgress(); 
+      
+      const semesterData = CURRICULUM_DATABASE[grade]?.semesters[semester] || {};
+      document.getElementById('edition-badge').textContent = `${CURRICULUM_DATABASE[grade]?.editionName || "自選"} 108課綱`;
+      
+      const chapterSelect = document.getElementById('chapter-select');
+      chapterSelect.innerHTML = '';
+
+      const chaptersKeys = Object.keys(semesterData);
+      if (chaptersKeys.length === 0) {
+        const option = document.createElement('option'); option.textContent = "自訂講義建構中...";
+        chapterSelect.appendChild(option);
+        document.getElementById('current-chapter-title').textContent = "未加載";
+        document.getElementById('segments-container').innerHTML = `<p class="text-center text-slate-500 py-6 text-xs">該單元目前是空白的喔！點擊「⚙️ 課程更新」可以用拍照或文字一鍵向 AI 雲端同步更新生成！</p>`;
+        return;
+      }
+
+      chaptersKeys.forEach((chapterId) => {
+        const option = document.createElement('option'); option.value = chapterId;
+        const isComp = !!courseCompletionData[`${grade}-${semester}`]?.[chapterId]?.completed;
+        option.textContent = (isComp ? "🟢 " : "⚪ ") + semesterData[chapterId].title;
+        chapterSelect.appendChild(option);
+      });
+
+      if (!window.restoreSessionTriggered) {
+        onChapterChange(chaptersKeys[0]);
+      }
+    }
+
+    // 當章節切換
+    function onChapterChange(chapterId) {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      isAudioPlaying = false;
+      currentSegmentIdx = -1;
+      updateAutoplayButtonState(false);
+
+      currentChapter = chapterId; 
+      
+      if (!window.restoreSessionTriggered) {
+        currentStep = 0;
+      }
+      
+      currentSegmentIdx = -1; playedSegments = {}; isLocked = true;
+      quizIdx = 0; selectedQuizOption = null; quizIsAnswered = false; quizScore = 0;
+      
+      updateUI(); drawStaticTeacherBoard(); clearStudentCanvas(); refreshDashboardUI();
+      saveStudySessionMemory();
+    }
+
+    function TUTOR_CURRICULUM_FOR_ACTIVE() {
+      return CURRICULUM_DATABASE[document.getElementById('grade-select').value]?.semesters[document.getElementById('semester-select').value] || {};
+    }
+
+    // 更新介面
+    function updateUI() {
+      const activeCurriculum = TUTOR_CURRICULUM_FOR_ACTIVE();
+      let activeLesson = activeCurriculum[currentChapter];
+      if (!activeLesson) return;
+      const activeSlide = activeLesson.slides[currentStep];
+      if (!activeSlide) return;
+
+      document.getElementById('current-chapter-title').textContent = activeLesson.title;
+      document.getElementById('step-badge').textContent = `階段 ${currentStep + 1}：${activeSlide.stepName}`;
+      document.getElementById('current-step-display').textContent = currentStep + 1;
+      document.getElementById('total-steps-display').textContent = activeLesson.slides.length;
+
+      const rBar = document.getElementById('rounds-bar'); rBar.innerHTML = '';
+      activeLesson.rounds.forEach((r, idx) => {
+        const span = document.createElement('span');
+        span.className = `px-1.5 py-0.5 rounded ${currentStep === idx ? 'bg-teal-950 text-teal-400 font-bold border border-teal-800' : 'text-slate-600'}`;
+        span.textContent = r; rBar.appendChild(span);
+      });
+
+      renderSegments(); updateProgressAndLock(); renderQuiz();
+      if (!isChalkAnimating) drawTeacherDemonstration(1);
+    }
+
+    // 渲染講義段落
+    function renderSegments() {
+      const container = document.getElementById('segments-container');
+      const activeSlide = TUTOR_CURRICULUM_FOR_ACTIVE()[currentChapter]?.slides[currentStep];
+      if (!activeSlide) return; container.innerHTML = '';
+
+      activeSlide.segments.forEach((seg, idx) => {
+        const isCurrent = currentSegmentIdx === idx;
+        const isListened = playedSegments[idx];
+        const card = document.createElement('div');
+        card.id = `segment-card-${idx}`;
+        card.onclick = () => playSegment(idx);
+        card.className = `p-3 rounded-xl border cursor-pointer transition flex items-start space-x-2 ${isCurrent ? 'bg-teal-950/40 border-teal-500 text-white scale-[1.01]' : 'bg-slate-950/40 border-slate-800/80 text-slate-300'}`;
+
+        let indHTML = isCurrent ? `<div class="w-4 h-4 bg-teal-500 text-slate-950 rounded-full text-[9px] flex items-center justify-center animate-pulse">🔊</div>` : (isListened ? `<div class="w-4 h-4 bg-emerald-950 text-emerald-400 rounded-full text-[9px] flex items-center justify-center border border-emerald-500/30">✓</div>` : `<div class="w-4 h-4 bg-slate-900 text-slate-500 rounded-full text-[9px] flex items-center justify-center border border-slate-800">聽</div>`);
+
+        card.innerHTML = `<div class="mt-0.5 flex-shrink-0">${indHTML}</div><div class="flex-1"><p class="${textFontSize} leading-relaxed whitespace-pre-wrap font-medium">${seg.text}</p></div>`;
+        container.appendChild(card);
+
+        if (isCurrent) {
+          setTimeout(() => { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60);
+        }
+      });
+      // 觸發公式排版
+      renderMath();
+    }
+
+    // --- 幾何黑板發光即時字幕 ---
+    function drawCanvasSubtitles(ctx) {
+      if (currentSegmentIdx === -1) return;
+      const segment = TUTOR_CURRICULUM_FOR_ACTIVE()[currentChapter]?.slides[currentStep]?.segments[currentSegmentIdx];
+      if (!segment) return;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(9, 15, 29, 0.9)'; ctx.fillRect(20, 235, 760, 50);
+      ctx.strokeStyle = '#14b8a6'; ctx.lineWidth = 2; ctx.shadowBlur = 6; ctx.shadowColor = '#14b8a6';
+      ctx.strokeRect(20, 235, 760, 50);
+
+      ctx.shadowBlur = 0; ctx.fillStyle = '#ccfbf1'; ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText("🔊 " + segment.text, 400, 260);
+      ctx.restore();
+    }
+
+    // 進度追蹤與解鎖
+    function updateProgressAndLock() {
+      const activeSlide = TUTOR_CURRICULUM_FOR_ACTIVE()[currentChapter]?.slides[currentStep];
+      if (!activeSlide) return;
+
+      const total = activeSlide.segments.length;
+      const listenedCount = Object.keys(playedSegments).filter(k => playedSegments[k]).length;
+      const percent = Math.min(Math.round((listenedCount / total) * 100), 100);
+
+      document.getElementById('progress-percent').textContent = `${percent}%`;
+      document.getElementById('progress-bar-fill').style.width = `${percent}%`;
+
+      const nextBtn = document.getElementById('next-step-btn');
+      const lockIcon = document.getElementById('lock-icon');
+      const lockStatusText = document.getElementById('lock-status-text');
+
+      if (percent >= 100) {
+        isLocked = false; nextBtn.disabled = false;
+        nextBtn.className = "py-1 px-2.5 rounded-lg text-xs font-bold transition flex items-center bg-gradient-to-r from-teal-500 to-emerald-500 text-white cursor-pointer shadow-md shadow-teal-500/10 active:scale-95";
+        document.getElementById('btn-lock-text').textContent = "🔓 進入下一階段 ➡️";
+        lockIcon.textContent = "🔓"; lockStatusText.textContent = "解鎖狀態：已可進入下一階段"; lockStatusText.className = "text-emerald-400 font-bold";
+        
+        const grade = document.getElementById('grade-select').value;
+        const semester = document.getElementById('semester-select').value;
+        const key = `${grade}-${semester}`;
+        if (!courseCompletionData[key]) courseCompletionData[key] = {};
+        courseCompletionData[key][currentChapter] = { completed: true };
+        saveLocalProgress();
+      } else {
+        isLocked = true; nextBtn.disabled = true;
+        nextBtn.className = "py-1 px-2.5 rounded-lg text-xs font-bold transition flex items-center bg-slate-850 text-slate-500 border border-slate-800 cursor-not-allowed";
+        document.getElementById('btn-lock-text').textContent = "🔒 尚未解鎖";
+        lockIcon.textContent = "🔒"; lockStatusText.textContent = "聽完全部段落解鎖下一步"; lockStatusText.className = "text-rose-400 font-bold";
+      }
+    }
+
+    // 播放講解段落
+    function playSegment(index) {
+      if (!window.speechSynthesis) return; window.speechSynthesis.cancel(); 
+      const activeSlide = TUTOR_CURRICULUM_FOR_ACTIVE()[currentChapter]?.slides[currentStep];
+      if (!activeSlide) return;
+      const segment = activeSlide.segments[index]; if (!segment) return;
+
+      currentSegmentIdx = index; isAudioPlaying = true; updateAutoplayButtonState(true);
+      triggerTeacherDrawingAnimation();
+
+      const utterance = new SpeechSynthesisUtterance(segment.voice);
+      if (selectedVoiceName) {
+        const uVoice = voices.find(v => v.name === selectedVoiceName); if (uVoice) utterance.voice = uVoice;
+      }
+      utterance.rate = speechRate;
+      window.currentUtterance = utterance; // iOS Safari 強制持久參照
+
+      utterance.onstart = function() { playedSegments[index] = true; updateUI(); };
+      utterance.onend = function() {
+        isAudioPlaying = false;
+        if (index < activeSlide.segments.length - 1) { playSegment(index + 1); }
+        else { currentSegmentIdx = -1; updateAutoplayButtonState(false); updateUI(); }
+      };
+      utterance.onerror = function() { isAudioPlaying = false; currentSegmentIdx = -1; updateAutoplayButtonState(false); updateUI(); };
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleAutoPlay() {
+      if (isChalkAnimating) return;
+      if (isAudioPlaying) stopTutorVoice(); else playSegment(0);
+    }
+    function stopTutorVoice() {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      isAudioPlaying = false; currentSegmentIdx = -1; updateAutoplayButtonState(false); updateUI();
+    }
+    function updateAutoplayButtonState(playing) {
+      const btn = document.getElementById('autoplay-btn'); if (!btn) return;
+      btn.innerHTML = playing ? `<span>🔇 暫停</span>` : `<span>🔊 自動播放</span>`;
+    }
+    function handleNextStep() {
+      if (isLocked) return;
+      const activeLesson = TUTOR_CURRICULUM_FOR_ACTIVE()[currentChapter];
+      if (currentStep < activeLesson.slides.length - 1) {
+        currentStep++; playedSegments = {}; updateUI();
+        saveStudySessionMemory();
+      } else {
+        const keys = Object.keys(TUTOR_CURRICULUM_FOR_ACTIVE()); const cIdx = keys.indexOf(currentChapter);
+        if (cIdx < keys.length - 1) {
+          onChapterChange(keys[cIdx + 1]);
+        } else {
+          setNotification("🏁 恭喜！本單元研讀已告一段落！請在右側小考或直接用 Gemini 提問！"); switchRightTab('quiz');
+        }
+      }
+    }
+
+    // --- 👨‍🏫 名師置中幾何手繪動畫軌跡 ---
+    function triggerTeacherDrawingAnimation() {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      const indicator = document.getElementById('drawing-indicator'); if (indicator) indicator.classList.remove('hidden');
+      drawProgress = 0; isChalkAnimating = true; let start = null;
+      function animate(timestamp) {
+        if (!start) start = timestamp;
+        const progress = Math.min((timestamp - start) / 1000, 1);
+        drawProgress = progress;
+        document.getElementById('drawing-progress-text').textContent = `名師板書繪圖中: ${Math.round(progress * 100)}%`;
+        drawTeacherDemonstration(progress);
+        if (progress < 1) animationFrameId = requestAnimationFrame(animate);
+        else { isChalkAnimating = false; indicator.classList.add('hidden'); drawTeacherDemonstration(1); }
+      }
+      animationFrameId = requestAnimationFrame(animate);
+    }
+
+    // 繪製黑板背景
+    function drawChalkBg(ctx) {
+      ctx.fillStyle = '#0b0f19'; ctx.fillRect(0, 0, 800, 300);
+      ctx.strokeStyle = '#161d30'; ctx.lineWidth = 0.5;
+      for (let x = 40; x < 800; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 300); ctx.stroke(); }
+      for (let y = 30; y < 300; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(800, y); ctx.stroke(); }
+    }
+
+    function drawStaticTeacherBoard() {
+      const canvas = document.getElementById('teacher-canvas'); if (!canvas) return;
+      const ctx = canvas.getContext('2d'); drawChalkBg(ctx);
+      ctx.strokeStyle = '#475569'; ctx.strokeRect(10, 10, 780, 280);
+      ctx.fillStyle = '#64748b'; ctx.font = 'bold 18px "Noto Sans TC"'; ctx.textAlign = 'center';
+      ctx.fillText("👨‍🏫 五甲國中 108課綱名師大黑板", 400, 130);
+      ctx.font = '13px "Noto Sans TC"'; ctx.fillText("點擊左邊課卡聽講，此處將同步模擬老師的手寫粉筆演算與即時發光字幕", 400, 165);
+      drawCanvasSubtitles(ctx);
+    }
+
+    function drawChalkLine(ctx, x1, y1, x2, y2, progress, color, width) {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 + (x2 - x1) * progress, y1 + (y2 - y1) * progress);
+      ctx.stroke();
+    }
+
+    function drawTeacherDemonstration(progress) {
+      const canvas = document.getElementById('teacher-canvas'); if (!canvas) return;
+      const ctx = canvas.getContext('2d'); drawChalkBg(ctx);
+      const tx1 = 250, ty1 = 180, tx2 = 450, ty2 = 180, tx3 = 250, ty3 = 60;
+
+      if (currentChapter === "1-1") {
+        if (currentStep === 0) {
+          ctx.fillStyle = '#ffffff'; ctx.font = 'bold 24px monospace'; ctx.fillText("(a + b)² = a² + 2ab + b²", 240, 120);
+          if (progress > 0.5) { ctx.strokeStyle = '#eab308'; ctx.lineWidth = 3; ctx.strokeRect(380, 90, 90, 40); }
+        } else if (currentStep === 1) {
+          ctx.strokeStyle = '#ffffff'; ctx.strokeRect(300, 40, 150, 150);
+          drawChalkLine(ctx, 300, 140, 450, 140, progress, '#e2e8f0', 2);
+          drawChalkLine(ctx, 400, 40, 400, 190, progress, '#e2e8f0', 2);
+        } else {
+          ctx.fillStyle = '#cbd5e1'; ctx.font = '20px monospace'; ctx.fillText("103² = (100 + 3)²", 260, 100);
+          if (progress > 0.5) { ctx.fillStyle = '#4ade80'; ctx.font = 'bold 24px monospace'; ctx.fillText("= 10000 + 600 + 9 = 10609", 230, 160); }
+        }
+      } else if (currentChapter === "2-3") {
+        drawChalkLine(ctx, tx1, ty1, tx2, ty2, progress, '#38bdf8', 4);
+        if (progress > 0.4) drawChalkLine(ctx, tx1, ty1, tx3, ty3, (progress-0.4)*1.6, '#f43f5e', 4);
+        if (progress > 0.8) {
+          drawChalkLine(ctx, tx2, ty2, tx3, ty3, 1, '#10b981', 4);
+          ctx.fillStyle = '#eab308'; ctx.font = 'bold 22px monospace'; ctx.fillText("a² + b² = c² (畢氏定理)", 480, 120);
+        }
+      } else if (currentChapter === "3-2") {
+        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 20px monospace'; ctx.fillText("十字交乘：x² + 5x + 6", 150, 70);
+        ctx.fillStyle = '#38bdf8'; ctx.font = '22px monospace'; ctx.fillText("x      +2", 250, 120); ctx.fillText("x      +3", 250, 180);
+        if (progress > 0.3) { drawChalkLine(ctx, 270, 115, 330, 175, progress, '#eab308', 3); drawChalkLine(ctx, 270, 175, 330, 115, progress, '#eab308', 3); }
+        if (progress > 0.8) { ctx.fillStyle = '#10b981'; ctx.font = '16px monospace'; ctx.fillText("➔ (x + 2)(x + 3)", 430, 140); }
+      } else if (currentChapter === "4-2") {
+        ctx.fillStyle = '#10b981'; ctx.font = 'bold 24px monospace'; ctx.fillText("一元二次方程式萬用公式解：", 150, 80);
+        if (progress > 0.4) {
+          ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px monospace'; ctx.fillText("x = [ -b ± √(b² - 4ac) ] / 2a", 200, 140);
+        }
+      } else if (currentChapter === "5-1") {
+        drawChalkLine(ctx, 150, 220, 650, 220, progress, '#ffffff', 2); drawChalkLine(ctx, 150, 220, 150, 60, progress, '#ffffff', 2);
+        if (progress > 0.5) {
+          ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(150, 220);
+          ctx.bezierCurveTo(250, 210, 350, 130, 450, 110); ctx.lineTo(550, 90); ctx.stroke();
+          ctx.fillStyle = '#f43f5e'; ctx.beginPath(); ctx.arc(450, 110, 5, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#ffffff'; ctx.font = '11px sans-serif'; ctx.fillText("描點在組上限！", 460, 115);
+        }
+      } else {
+        ctx.fillStyle = '#64748b'; ctx.font = 'bold 18px monospace'; ctx.textAlign = 'center'; ctx.fillText(`自訂課程單元: ${TUTOR_CURRICULUM_FOR_ACTIVE()[currentChapter]?.title || "五甲自編"}`, 400, 140);
+      }
+      drawCanvasSubtitles(ctx);
+    }
+
+    // --- ✍️ 學生草稿板 ---
+    function initStudentCanvas() {
+      const canvas = document.getElementById('student-canvas'); if (!canvas) return;
+      canvas.addEventListener('pointerdown', (e) => {
+        e.target.setPointerCapture(e.pointerId); const rect = canvas.getBoundingClientRect();
+        const sX = canvas.width / rect.width; const sY = canvas.height / rect.height;
+        lastX = (e.clientX - rect.left) * sX; lastY = (e.clientY - rect.top) * sY;
+        const ctx = canvas.getContext('2d'); ctx.beginPath(); ctx.moveTo(lastX, lastY);
+        ctx.lineWidth = brushSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = brushColor;
+        isDrawing = true;
+      });
+      canvas.addEventListener('pointermove', (e) => {
+        if (!isDrawing) return; const rect = canvas.getBoundingClientRect();
+        const sX = canvas.width / rect.width; const sY = canvas.height / rect.height;
+        const ctx = canvas.getContext('2d'); const cX = (e.clientX - rect.left) * sX; const cY = (e.clientY - rect.top) * sY;
+        ctx.lineTo(cX, cY); ctx.stroke(); lastX = cX; lastY = cY;
+      });
+      canvas.addEventListener('pointerup', (e) => { if (isDrawing) { e.target.releasePointerCapture(e.pointerId); isDrawing = false; } });
+      clearStudentCanvas();
+    }
+    
+    function clearStudentCanvas() {
+      const canvas = document.getElementById('student-canvas'); if (!canvas) return;
+      const ctx = canvas.getContext('2d'); ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+      for (let y = 30; y < canvas.height; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+    }
+    function setBrushColor(c) { brushColor = c; }
+    function changeBrushSize(s) { brushSize = parseInt(s); document.getElementById('brush-size-display').textContent = `${s}px`; }
+
+    // --- 🏆 隨堂盲點小測驗單元 ---
+    function renderQuiz() {
+      const container = document.getElementById('quiz-card-container');
+      const grade = document.getElementById('grade-select').value;
+      const semester = document.getElementById('semester-select').value;
+      const quizKey = `${grade}-${semester}`;
+      
+      const quizList = QUIZ_DATABASE[quizKey] || [];
+      
+      if (quizList.length === 0) {
+        container.innerHTML = `<div class="text-center py-6 text-slate-500 text-xs">該年級學期的隨堂盲點小考正在編製中。您可以前往「⚙️ 課程更新」線上同步更新或拍照自動產生對應的題目與解析喔！</div>`; return;
+      }
+      document.getElementById('quiz-score-badge').textContent = `得分: ${quizScore} / ${quizList.length}`;
+
+      if (quizIdx >= quizList.length) {
+        container.innerHTML = `<div class="text-center py-4 space-y-2"><span class="text-2xl block animate-bounce">🏆</span><h4 class="font-extrabold text-teal-400 text-xs">小考自主檢測完畢！</h4><p class="text-[11px]">總得分：<strong class="text-yellow-400 font-mono">${quizScore} / ${quizList.length}</strong> 分</p><button onclick="resetQuizProgress()" class="bg-indigo-600 px-3 py-1 rounded-lg text-[11px] font-bold">重新挑戰</button></div>`; return;
+      }
+
+      const q = quizList[quizIdx]; let optHTML = '';
+      q.options.forEach((opt, idx) => {
+        let btnStyle = "border-slate-800 bg-slate-950/40 text-slate-300";
+        if (quizIsAnswered) {
+          if (idx === q.answer) btnStyle = "border-emerald-500 bg-emerald-950/30 text-emerald-400 font-bold";
+          else if (idx === selectedQuizOption) btnStyle = "border-rose-500 bg-rose-950/30 text-rose-400";
+          else btnStyle = "border-slate-900 text-slate-600";
+        } else if (selectedQuizOption === idx) btnStyle = "border-teal-500 bg-teal-950/30 text-teal-300 ring-2 ring-teal-500/20";
+
+        optHTML += `<button ${quizIsAnswered?'disabled':''} onclick="selectQuizOption(${idx})" class="w-full text-left p-2 rounded-xl border text-[11px] transition ${btnStyle}">${opt}</button>`;
+      });
+
+      container.innerHTML = `
+        <div class="space-y-2">
+          <div class="bg-slate-950/50 p-2.5 rounded-xl border border-slate-800 text-[11px] font-bold text-white">Q${quizIdx+1}: ${q.question}</div>
+          <div class="space-y-1.5">${optHTML}</div>
+        </div>
+        ${quizIsAnswered ? `<div class="bg-indigo-950/30 border border-indigo-500/20 p-2 rounded-xl text-[10px]"><div class="flex justify-between font-bold text-teal-400 mb-0.5"><span>👨‍🏫 老師解析說明：</span><button onclick="speakQuizExplanation()" class="text-indigo-400 bg-slate-950 px-1.5 py-0.5 rounded">🔊 聽詳解</button></div><p class="text-slate-300">${q.explainText}</p></div>` : ''}
+        <button ${selectedQuizOption===null?'disabled':''} onclick="${quizIsAnswered?'nextQuizQuestion()':'submitQuizAnswer()'}" class="w-full py-2 rounded-xl text-xs font-bold transition ${selectedQuizOption===null?'bg-slate-800 text-slate-500 cursor-not-allowed':'bg-teal-600 text-slate-950 font-black'}">${quizIsAnswered?(quizIdx===quizList.length-1?'看最終成績 🏁':'進入下一題 →'):'提交答案驗收'}</button>
+      `;
+      renderMath();
+    }
+
+    function selectQuizOption(idx) {
+      selectedQuizOption = idx;
+      renderQuiz();
+    }
+
+    function nextQuizQuestion() {
+      quizIdx++;
+      selectedQuizOption = null;
+      quizIsAnswered = false;
+      renderQuiz();
+    }
+
+    function resetQuizProgress() {
+      quizIdx = 0;
+      quizScore = 0;
+      selectedQuizOption = null;
+      quizIsAnswered = false;
+      renderQuiz();
+    }
+
+    function submitQuizAnswer() {
+      quizIsAnswered = true; 
+      const grade = document.getElementById('grade-select').value;
+      const semester = document.getElementById('semester-select').value;
+      const quizKey = `${grade}-${semester}`;
+      const q = QUIZ_DATABASE[quizKey][quizIdx];
+      
+      if (selectedQuizOption === q.answer) { quizScore++; speakTutorFeedback("答對囉！概念很棒，繼續保持！"); }
+      else speakTutorFeedback(`答錯囉！答案應該選${q.options[q.answer].substring(0,3)}。我們點擊聽詳解。`);
+      renderQuiz();
+    }
+
+    function speakQuizExplanation() {
+      const grade = document.getElementById('grade-select').value;
+      const semester = document.getElementById('semester-select').value;
+      const quizKey = `${grade}-${semester}`;
+      const q = QUIZ_DATABASE[quizKey][quizIdx]; if (q) speakTutorFeedback(`這題老師來幫你分析。${q.voiceExplain}`);
+    }
+
+    function speakTutorFeedback(txt) {
+      if (!window.speechSynthesis) return; window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(txt); if (selectedVoiceName) { const v = voices.find(x => x.name === selectedVoiceName); if (v) u.voice = v; }
+      u.rate = speechRate; window.currentUtterance = u; window.speechSynthesis.speak(u);
+    }
+
+    // --- 智慧自訂 API Key 管理機制 ---
+    function saveCustomApiKey() {
+      const keyVal = document.getElementById('custom-api-key-input').value.trim();
+      localCustomApiKey = keyVal;
+      localStorage.setItem('vj_math_custom_api_key', keyVal);
+      updateApiKeyIndicator();
+      checkGeminiKeyWarning(); // 同步檢查 Gemini 家教面板的本地端警告
+      saveProgressToCloud(); // 雲端同步金鑰
+      setNotification("🔑 自訂 API 金鑰已成功儲存與同步！");
+    }
+
+    // 🌟 在「Gemini家教」面板中點擊直接儲存本地端金鑰
+    window.saveKeyFromGeminiTab = function() {
+      const val = document.getElementById('gemini-tab-key-input').value.trim();
+      if (!val) { setNotification("⚠️ 請貼上有效的 API 金鑰喔！"); return; }
+      localCustomApiKey = val;
+      localStorage.setItem('vj_math_custom_api_key', val);
+      
+      const configKeyInput = document.getElementById('custom-api-key-input');
+      if (configKeyInput) configKeyInput.value = val;
+      
+      updateApiKeyIndicator();
+      checkGeminiKeyWarning(); // 即時隱藏警告卡片
+      saveProgressToCloud(); // 自動同步
+      setNotification("🔑 本地端 API 金鑰儲存成功！智慧 Gemini 伴學服務已完全啟用！");
+    };
+
+    function updateApiKeyIndicator() {
+      const statusEl = document.getElementById('api-key-status');
+      if (localCustomApiKey) {
+        statusEl.textContent = "🟢 已啟用您的自訂 API 金鑰 (優先度：高)";
+        statusEl.className = "text-[9px] text-emerald-400 font-bold";
+      } else {
+        statusEl.textContent = "⚪ 目前使用系統預設注入之安全通道";
+        statusEl.className = "text-[9px] text-slate-500 italic";
+      }
+    }
+
+    // 🌟 檢查是否需要彈出本地端金鑰警告
+    function checkGeminiKeyWarning() {
+      const warningBox = document.getElementById('gemini-key-missing-warning');
+      if (!warningBox) return;
+      const finalKey = localCustomApiKey || apiKey || "";
+      if (!finalKey) {
+        warningBox.classList.remove('hidden');
+      } else {
+        warningBox.classList.add('hidden');
+      }
+    }
+
+    // --- 🤖 串接真實環境 Gemini 2.5 核心 ---
+    async function callGeminiAPI(promptText, base64Image = null) {
+      // 如果本機有自訂金鑰，優先採用本機金鑰以解決離線/學校網域阻擋問題；否則使用平台注入的金鑰
+      const finalKey = localCustomApiKey || apiKey || "";
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${finalKey}`;
+      
+      let payload;
+      const systemInstructionText = "你是一位國中數學金牌名師，正在使用溫柔幽默的『蘇格拉底教學引導法』。請務必遵循以下互動規律：1. 絕對不直接給出完整算式與答案。 2. 透過追問先修觀念（例如：分配律、完全平方等）或者給予一小步提示。 3. 在繁體中文回答中，數學公式一律使用標準 LaTeX 格式（內聯公式用 $ 包覆，例如 $x^2$，獨立公式用 $$ 包覆）。";
+
+      if (base64Image) {
+        const mimeType = base64Image.split(';')[0].split(':')[1] || "image/png";
+        const rawBase64 = base64Image.split(',')[1] || base64Image;
+        
+        payload = {
+          contents: [{
+            role: "user",
+            parts: [
+              { text: promptText },
+              { inlineData: { mimeType: mimeType, data: rawBase64 } }
+            ]
+          }],
+          systemInstruction: {
+            parts: [{ text: systemInstructionText }]
+          }
+        };
+      } else {
+        payload = {
+          contents: [{ parts: [{ text: promptText }] }],
+          systemInstruction: {
+            parts: [{ text: systemInstructionText }]
+          }
+        };
+      }
+
+      let delay = 1000;
+      let lastError = null;
+
+      for (let i = 0; i < 5; i++) {
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            return result.candidates?.[0]?.content?.parts?.[0]?.text || "老師剛才想了一下，能請你再說一次嗎？";
+          } else {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error?.message || `HTTP 錯誤! 狀態碼: ${response.status}`);
+          }
+        } catch (err) {
+          lastError = err;
+        }
+        
+        if (i < 4) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2;
+        }
+      }
+      
+      throw lastError || new Error("連線超時，請確認網路狀態。");
+    }
+
+    // 發送學生提問至 Gemini
+    async function sendGeminiMessage() {
+      const inputEl = document.getElementById('gemini-user-input');
+      const text = inputEl.value.trim();
+      if (!text && !uploadedPhotoBase64) return;
+
+      const chatLog = document.getElementById('gemini-chat-log');
+      const sendBtn = document.getElementById('gemini-send-btn');
+      
+      let studentMsgHTML = `<div class="bg-teal-950/40 p-2.5 rounded-xl border border-teal-800/50 text-teal-200 max-w-[90%] ml-auto text-right fade-in">`;
+      if (uploadedPhotoBase64) {
+        studentMsgHTML += `<img class="max-w-[140px] h-auto rounded-lg mb-1 inline-block border border-teal-600" src="${uploadedPhotoBase64}"><br>`;
+      }
+      if (text) {
+        studentMsgHTML += `<p class="font-medium">${text}</p>`;
+      } else {
+        studentMsgHTML += `<p class="italic text-[10px] text-teal-400">📷 已拍照送出題目照片</p>`;
+      }
+      studentMsgHTML += `</div>`;
+      chatLog.innerHTML += studentMsgHTML;
+
+      const activePhoto = uploadedPhotoBase64;
+      inputEl.value = '';
+      cancelUploadedPhoto();
+      chatLog.scrollTop = chatLog.scrollHeight;
+
+      const loadingId = 'gemini-loading-' + Date.now();
+      chatLog.innerHTML += `<div id="${loadingId}" class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-slate-300 max-w-[90%] fade-in animate-pulse">🤖 Gemini 老師正在細心批閱你的題目並構思引導步驟，請稍候...</div>`;
+      chatLog.scrollTop = chatLog.scrollHeight;
+      sendBtn.disabled = true;
+
+      const currentUnitTitle = TUTOR_CURRICULUM_FOR_ACTIVE()[currentChapter]?.title || "多項式與幾何運算";
+      let prompt = `學生的提問內容如下：\n"${text}"\n`;
+      if (activePhoto) {
+        prompt += `這是一張學生拍下的不會的紙本題目或算式照片。請詳細辨識照片中的題目，並對該題目啟動蘇格拉底式引導，第一步先指出他的考點在哪裡，並引導他思考如何下手，千萬不要直接把算式列出並給答案！`;
+      }
+      prompt += `\n目前學生在 108 課綱自主學習講堂，進度在「${currentUnitTitle}」。請以繁體中文親切解答並引導。`;
+
+      try {
+        const geminiAnswerText = await callGeminiAPI(prompt, activePhoto);
+        
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+
+        const formattedAnswer = geminiAnswerText.replace(/\n/g, "<br>");
+        chatLog.innerHTML += `<div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-slate-200 max-w-[95%] fade-in leading-relaxed">🤖 <strong>Gemini 老師：</strong><br>${formattedAnswer}</div>`;
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        renderMath();
+
+        const speechText = geminiAnswerText.replace(/<[^>]*>/g, "").replace(/\$/g, "");
+        speakTutorFeedback(speechText);
+      } catch (err) {
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+        
+        let customErrorMsg = "❌ 發生連線狀況: " + err.message + "，請稍後重試。";
+        if (err.message.includes("Failed to fetch") || err.name === "TypeError" || err.message.includes("API_KEY_INVALID") || err.message.includes("API key not valid")) {
+          customErrorMsg = `
+            <div class="text-rose-400 font-bold space-y-1 text-xs">
+              <p>❌ 連線失敗 (API 連線通道受阻)</p>
+              <p class="text-[10px] text-slate-400 leading-normal">
+                連線失敗可能的原因：<br>
+                1. 您的網頁瀏覽器安裝了廣告阻擋插件（如 Adblock、uBlock Origin）或開啟了 Brave 防護（Shield），或者是學校/家中的內部網路防火牆阻擋了 Google API 網域。<br>
+                2. 您目前正在<b>下載後的 HTML 檔案 (本地端)</b> 執行，此時由於沒有平台提供密鑰，API 連線會受限。<br><br>
+                <strong>💡 終極解決小撇步：</strong><br>
+                請直接在上方<b>「智慧 API 離線/自訂連線設定」</b>或直接在警告區塊貼上您專屬的免費 Gemini API Key，即可在任何網域、甚至下載後的檔案中流暢連線 AI 家教！
+              </p>
+            </div>
+          `;
+        }
+        
+        chatLog.innerHTML += `<div class="bg-rose-950/20 border border-rose-900/40 p-2.5 rounded-xl max-w-[90%] fade-in">${customErrorMsg}</div>`;
+        chatLog.scrollTop = chatLog.scrollHeight;
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    // --- 📷 行動伴學解題：相片/相機整合 ---
+    function onPhotoSelected(input) {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          uploadedPhotoBase64 = e.target.result;
+          document.getElementById('gemini-thumb').src = e.target.result;
+          document.getElementById('gemini-img-preview-box').classList.remove('hidden');
+          setNotification("📷 題目照片已就緒，可以直接點擊「提問」發送給 Gemini 進行多模態影像分析與引導式解題！");
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+    function cancelUploadedPhoto() {
+      uploadedPhotoBase64 = null;
+      document.getElementById('gemini-file-input').value = '';
+      document.getElementById('gemini-img-preview-box').classList.add('hidden');
+    }
+
+    // --- 🗖 Gemini 全螢幕投放模式 ---
+    function toggleGeminiFullscreen() {
+      const panel = document.getElementById('tab-panel-gemini');
+      const chatLog = document.getElementById('gemini-chat-log');
+      const btnTxt = document.getElementById('gemini-fs-btn-txt');
+      
+      if (!isGeminiFullscreen) {
+        panel.classList.add('fixed', 'inset-4', 'md:inset-10', 'z-[100]', 'shadow-2xl', 'border-slate-600', 'bg-slate-900');
+        panel.classList.remove('min-h-[340px]');
+        chatLog.classList.remove('max-h-[220px]');
+        chatLog.classList.add('max-h-[calc(100vh-220px)]');
+        btnTxt.textContent = "縮小視窗 🗗";
+        setNotification("📺 進入大螢幕投放教學模式！適合投影機、教室大平板互動。");
+      } else {
+        panel.classList.remove('fixed', 'inset-4', 'md:inset-10', 'z-[100]', 'shadow-2xl', 'border-slate-600');
+        panel.classList.add('min-h-[340px]');
+        chatLog.classList.add('max-h-[220px]'); // 🌟 修正：classList.add，修復 chatLog.add 本地端崩潰
+        chatLog.classList.remove('max-h-[calc(100vh-220px)]');
+        btnTxt.textContent = "全螢幕投放 🗖";
+      }
+      isGeminiFullscreen = !isGeminiFullscreen;
+    }
+
+    // --- ⚙️ 108課綱 雲端更新中心彈出視窗控制 ---
+    function openCourseManager() {
+      document.getElementById('course-manager-modal').classList.remove('hidden');
+    }
+    function closeCourseManager() {
+      document.getElementById('course-manager-modal').classList.add('hidden');
+    }
+
+    function onCoursePhotoSelected(input) {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          coursePhotoBase64 = e.target.result;
+          document.getElementById('course-photo-status').textContent = "✅ 已成功讀取課本題目照片";
+          document.getElementById('course-photo-status').className = "text-[10px] text-emerald-400 font-bold";
+          document.getElementById('photo-update-btn').disabled = false;
+          setNotification("📸 課本照片已完成快取！請點擊下方的「一鍵生成全新點讀課程」按鈕。");
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    function extractJSONFromText(text) {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        return match[0];
+      }
+      return text;
+    }
+
+    // --- 📸 拍照上傳自動分析並生成自訂點讀講義課程 ---
+    async function photoUpdateCurriculum() {
+      if (!coursePhotoBase64) return;
+      const updateBtn = document.getElementById('photo-update-btn');
+      updateBtn.disabled = true;
+      updateBtn.textContent = "⚙️ Gemini 多模態辨識與課程編排中 (約需5秒)...";
+
+      const grade = document.getElementById('grade-select').value;
+      const semester = document.getElementById('semester-select').value;
+
+      const prompt = `請幫我辨識這張上傳的紙本考卷或課本照片。請以此照片上的題目與核心數學定理為主題，為國中${grade}年級第${semester}學期量身訂製一堂符合108課綱的【素養解題特訓點讀課程】。
+請僅輸出嚴格且合法的 JSON 物件格式（請勿添加任何 markdown \`\`\` 符號、不要帶有額外的說明字元），結構定義如下：
+{
+  "chapterId": "photo-course-${Date.now()}",
+  "chapterTitle": "📸 拍照生成：精選素養點讀講義",
+  "rounds": ["考題觀念前導", "考題步驟實戰"],
+  "slides": [
+    {
+      "stepName": "照片中知識點精講",
+      "segments": [
+        { "text": "照片上的關鍵考點為：(請根據照片上的題目，寫一段精簡、好懂的中文點讀講義文字)。", "voice": "同學們好，這堂課我們來解析你上傳的照片考題。" },
+        { "text": "(請給出照片題目的精簡解題步驟。)", "voice": "(請用自然生動的語音講解解題步驟。)" }
+      ]
+    }
+  ],
+  "quiz": {
+    "question": "(請根據照片中的同類考點編寫一道相似的測驗選擇題。)",
+    "options": ["(A) (正確或干擾選項)", "(B) (干擾選項)", "(C) (干擾選項)", "(D) (干擾選項)"],
+    "answer": 0,
+    "explainText": "(請寫出該小考測驗的詳盡計算推導過程。)",
+    "voiceExplain": "這題答案選A。因為..."
+  }
+}`;
+
+      try {
+        const resText = await callGeminiAPI(prompt, coursePhotoBase64);
+        const cleanJSON = extractJSONFromText(resText);
+        const data = JSON.parse(cleanJSON);
+
+        if (!CURRICULUM_DATABASE[grade]) CURRICULUM_DATABASE[grade] = { editionName: "自編版", semesters: {} };
+        if (!CURRICULUM_DATABASE[grade].semesters[semester]) CURRICULUM_DATABASE[grade].semesters[semester] = {};
+        
+        CURRICULUM_DATABASE[grade].semesters[semester][data.chapterId] = {
+          title: data.chapterTitle,
+          rounds: data.rounds,
+          slides: data.slides
+        };
+
+        const key = `${grade}-${semester}`;
+        if (!QUIZ_DATABASE[key]) QUIZ_DATABASE[key] = [];
+        QUIZ_DATABASE[key].push(data.quiz);
+
+        saveCourseDatabaseToLocal();
+        onGradeOrSemesterChange();
+        onChapterChange(data.chapterId);
+        
+        closeCourseManager();
+        coursePhotoBase64 = null;
+        document.getElementById('course-photo-status').textContent = "尚未選擇照片";
+        document.getElementById('course-photo-status').className = "text-[10px] text-slate-500 italic";
+        setNotification(`🎉 拍照編排成功！已自動導入自訂單元：${data.chapterTitle}`);
+      } catch (err) {
+        setNotification(`❌ 導入失敗: ${err.message}`);
+      } finally {
+        updateBtn.disabled = false;
+        updateBtn.textContent = "🚀 根據照片一鍵生成全新點讀課程";
+      }
+    }
+
+    // --- 🌐 線上課程文字自動同步生成 ---
+    async function onlineUpdateCurriculum() {
+      const keywordInput = document.getElementById('online-update-keyword');
+      const keyword = keywordInput.value.trim();
+      if (!keyword) { setNotification("⚠️ 請先輸入您想生成的 108 課綱主題！"); return; }
+
+      const updateBtn = document.getElementById('online-update-btn');
+      updateBtn.disabled = true;
+      updateBtn.textContent = "⚙️ 正在向雲端大腦同步編排講義中...";
+
+      const grade = document.getElementById('grade-select').value;
+      const semester = document.getElementById('semester-select').value;
+      
+      const prompt = `請為國中${grade}年級第${semester}學期編寫一堂全新的關於【${keyword}】特訓點讀課程。
+請僅輸出嚴格合法的 JSON 物件格式（請勿添加 any markdown \`\`\` 符號），結構如下：
+{
+  "chapterId": "online-${Date.now()}",
+  "chapterTitle": "會考素養特訓：${keyword}",
+  "rounds": ["${keyword}概念前導", "${keyword}實戰解構"],
+  "slides": [
+    {
+      "stepName": "${keyword}基礎核心概念",
+      "segments": [
+        { "text": "${keyword}的核心點在於...", "voice": "同學們好，這堂課我們學習${keyword}的觀念。" }
+      ]
+    }
+  ],
+  "quiz": {
+    "question": "(請寫出一題關於${keyword}的素養選擇題。)",
+    "options": ["(A) (選項)", "(B) (選項)", "(C) (選項)", "(D) (選項)"],
+    "answer": 0,
+    "explainText": "(詳盡推導說明。)",
+    "voiceExplain": "這題答案選A。因為..."
+  }
+}`;
+
+      try {
+        const resText = await callGeminiAPI(prompt);
+        const cleanJSON = extractJSONFromText(resText);
+        const data = JSON.parse(cleanJSON);
+
+        if (!CURRICULUM_DATABASE[grade]) CURRICULUM_DATABASE[grade] = { editionName: "雲端版", semesters: {} };
+        if (!CURRICULUM_DATABASE[grade].semesters[semester]) CURRICULUM_DATABASE[grade].semesters[semester] = {};
+        
+        CURRICULUM_DATABASE[grade].semesters[semester][data.chapterId] = {
+          title: data.chapterTitle,
+          rounds: data.rounds,
+          slides: data.slides
+        };
+
+        const key = `${grade}-${semester}`;
+        if (!QUIZ_DATABASE[key]) QUIZ_DATABASE[key] = [];
+        QUIZ_DATABASE[key].push(data.quiz);
+
+        saveCourseDatabaseToLocal();
+        onGradeOrSemesterChange();
+        onChapterChange(data.chapterId);
+        
+        closeCourseManager();
+        keywordInput.value = '';
+        setNotification(`🎉 雲端文字同步生成成功：${data.chapterTitle}`);
+      } catch (err) {
+        setNotification(`❌ 雲端生成失敗: ${err.message}`);
+      } finally {
+        updateBtn.disabled = false;
+        updateBtn.textContent = "🚀 雲端文字同步更新課程";
+      }
+    }
+
+    // --- 手動編寫自訂課程 ---
+    function saveManualCourse() {
+      const grade = document.getElementById('man-grade').value;
+      const semester = document.getElementById('man-semester').value;
+      const chapId = document.getElementById('man-chap-id').value.trim();
+      const chapTitle = document.getElementById('man-chap-title').value.trim();
+      const roundsRaw = document.getElementById('man-rounds').value.trim();
+      const slideText = document.getElementById('man-slide-text').value.trim();
+      const slideVoice = document.getElementById('man-slide-voice').value.trim();
+
+      if (!chapId || !chapTitle || !roundsRaw || !slideText) {
+        setNotification("⚠️ 請完整填寫自訂課程必填欄位！"); return;
+      }
+
+      const roundsArr = roundsRaw.split(/[,，]/).map(r => r.trim());
+
+      if (!CURRICULUM_DATABASE[grade]) CURRICULUM_DATABASE[grade] = { editionName: "手編自訂", semesters: {} };
+      if (!CURRICULUM_DATABASE[grade].semesters[semester]) CURRICULUM_DATABASE[grade].semesters[semester] = {};
+
+      CURRICULUM_DATABASE[grade].semesters[semester][chapId] = {
+        title: chapTitle,
+        rounds: roundsArr,
+        slides: [
+          {
+            stepName: roundsArr[0],
+            segments: [
+              { text: slideText, voice: slideVoice || slideText }
+            ]
+          }
+        ]
+      };
+
+      saveCourseDatabaseToLocal();
+      onGradeOrSemesterChange();
+      onChapterChange(chapId);
+      
+      closeCourseManager();
+      setNotification(`💾 自訂手寫講義 "${chapTitle}" 已儲存至您的講義選單中！`);
+    }
+
+    // --- RWD 切換分頁控制 ---
+    function switchRightTab(tabId) {
+      activeTab = tabId;
+      const tBtnPractice = document.getElementById('tab-btn-practice');
+      const tBtnQuiz = document.getElementById('tab-btn-quiz');
+      const tBtnGemini = document.getElementById('tab-btn-gemini');
+      
+      const pPractice = document.getElementById('tab-panel-practice');
+      const pQuiz = document.getElementById('tab-panel-quiz');
+      const pGemini = document.getElementById('tab-panel-gemini');
+
+      tBtnPractice.className = "flex-1 py-1.5 text-xs font-black rounded-xl transition " + (tabId==='practice'?'bg-teal-600 text-white':'text-slate-400 hover:bg-slate-850');
+      tBtnQuiz.className = "flex-1 py-1.5 text-xs font-black rounded-xl transition " + (tabId==='quiz'?'bg-teal-600 text-white':'text-slate-400 hover:bg-slate-850');
+      tBtnGemini.className = "flex-1 py-1.5 text-xs font-black rounded-xl transition " + (tabId==='gemini'?'bg-teal-600 text-white':'text-slate-400 hover:bg-slate-850');
+
+      if (tabId==='practice') { pPractice.classList.remove('hidden'); pQuiz.classList.add('hidden'); pGemini.classList.add('hidden'); setTimeout(clearStudentCanvas, 50); }
+      else if (tabId==='quiz') { pQuiz.classList.remove('hidden'); pPractice.classList.add('hidden'); pGemini.classList.add('hidden'); renderQuiz(); }
+      else { pGemini.classList.remove('hidden'); pPractice.classList.add('hidden'); pQuiz.classList.add('hidden'); checkGeminiKeyWarning(); }
+    }
+
+    function changeFontSize(sz) { textFontSize = sz; renderSegments(); }
+    function setNotification(msg) { document.getElementById('notification-bar').classList.remove('hidden'); document.getElementById('notification-text').textContent = msg; }
+
+    // --- 智慧自主學習進度自動復原記憶 ---
+    function restoreLastSessionProgress() {
+      try {
+        const savedSession = localStorage.getItem(MEMORY_SESSION_KEY);
+        if (savedSession) {
+          const session = JSON.parse(savedSession);
+          
+          document.getElementById('grade-select').value = session.grade;
+          document.getElementById('semester-select').value = session.semester;
+          
+          window.restoreSessionTriggered = true; 
+          onGradeOrSemesterChange();
+          
+          const activeCurriculum = TUTOR_CURRICULUM_FOR_ACTIVE();
+          if (activeCurriculum[session.chapter]) {
+            currentChapter = session.chapter;
+            document.getElementById('chapter-select').value = session.chapter;
+            
+            if (activeCurriculum[session.chapter].slides[session.step]) {
+              currentStep = session.step;
+            }
+          }
+          
+          window.restoreSessionTriggered = false;
+          updateUI();
+          setNotification("👋 歡迎回來！已為您智慧復原至您上次自學的課卡進度位置。");
+        } else {
+          onGradeOrSemesterChange();
+        }
+      } catch(e) {
+        onGradeOrSemesterChange();
+      }
+    }
+
+    // ==========================================
+    //   模組全域方法全局掛載 (確保 HTML Inline 事件 100% 成功運作)
+    // ==========================================
+    window.toggleAutoPlay = toggleAutoPlay;
+    window.handleNextStep = handleNextStep;
+    window.onGradeOrSemesterChange = onGradeOrSemesterChange;
+    window.onChapterChange = onChapterChange;
+    window.resetAllStudyProgress = resetAllStudyProgress;
+    window.clearStudentCanvas = clearStudentCanvas;
+    window.setBrushColor = setBrushColor;
+    window.changeBrushSize = changeBrushSize;
+    window.changeFontSize = changeFontSize;
+    window.playSegment = playSegment;
+    window.submitQuizAnswer = submitQuizAnswer;
+    window.speakQuizExplanation = speakQuizExplanation;
+    window.sendGeminiMessage = sendGeminiMessage;
+    window.onPhotoSelected = onPhotoSelected;
+    window.cancelUploadedPhoto = cancelUploadedPhoto;
+    window.toggleGeminiFullscreen = toggleGeminiFullscreen;
+    window.openCourseManager = openCourseManager;
+    window.closeCourseManager = closeCourseManager;
+    window.onCoursePhotoSelected = onCoursePhotoSelected;
+    window.photoUpdateCurriculum = photoUpdateCurriculum;
+    window.onlineUpdateCurriculum = onlineUpdateCurriculum;
+    window.saveManualCourse = saveManualCourse;
+    window.switchRightTab = switchRightTab;
+    window.changeVoice = changeVoice;
+    window.changeRate = changeRate;
+    window.saveCustomApiKey = saveCustomApiKey;
+    window.saveKeyFromGeminiTab = saveKeyFromGeminiTab;
+    window.selectQuizOption = selectQuizOption;
+    window.nextQuizQuestion = nextQuizQuestion;
+    window.resetQuizProgress = resetQuizProgress;
+
+    // 當 DOM 樹載入完畢，立即執行核心啟動
+    document.addEventListener("DOMContentLoaded", () => {
+      // 載入自訂 API 金鑰狀態
+      const apiKeyInput = document.getElementById('custom-api-key-input');
+      if (apiKeyInput) apiKeyInput.value = localCustomApiKey;
+      updateApiKeyIndicator();
+      checkGeminiKeyWarning(); // 🌟 檢查本地端連線警告
+
+      initSpeech(); 
+      initStudentCanvas(); 
+
+      // 本機快取進度與章節復原
+      restoreLastSessionProgress();
+      renderMath(); 
+    });
+  </script>
+
+  <!-- 6. Firebase Compat 雲端同盟與安全性認證服務模組 (非 type="module" 技術，完美相容 file:// 離線環境) -->
+  <script>
+    // ==========================================
+    //   Firebase Compat 初始化 (安全防崩潰離線保護)
+    // ==========================================
+    let db = null;
+    let auth = null;
+    let appId = 'default-app-id';
+
+    // 🌟 五甲國中專屬 Firebase 設定 (直接寫死，無論在哪個環境開啟都能使用)
+    let firebaseConfig = {
+      apiKey: "AIzaSyAwCFfrkKQSk7ectEesEg_QOCRUgwRP9Rs",
+      authDomain: "gemini-2ce77.firebaseapp.com",
+      projectId: "gemini-2ce77",
+      storageBucket: "gemini-2ce77.firebasestorage.app",
+      messagingSenderId: "921558735258",
+      appId: "1:921558735258:web:5e101ecc1d716925524223",
+      measurementId: "G-L122RY1773"
+    };
+
+    // 若平台仍有額外注入設定 (例如部署到特定沙盒環境)，則優先採用平台注入版本
+    try {
+      if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+        firebaseConfig = JSON.parse(__firebase_config);
+      }
+    } catch (e) {
+      console.warn("Firebase Config Parse Error, using built-in config instead:", e);
+    }
+
+    if (typeof __app_id !== 'undefined') {
+      appId = __app_id;
+    } else {
+      appId = firebaseConfig.projectId;
+    }
+
+    // 優先執行 Firebase 連線
+    const setupFirebaseAndAuth = async () => {
+      // 確保 Firebase SDK 已載入 (如果在完全離線無網路/未提供 Config 時降級)
+      if (typeof firebase === 'undefined' || !firebaseConfig) {
+        console.warn("Firebase library is not loaded or config is empty. Defaulting to localStorage offline mode.");
+        setNotification("💡 目前為本機離線模式，進度將安全存於您的瀏覽器快取中。");
+        updateUserUI(null);
+        return;
+      }
+
+      try {
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+
+        // 接管 HTML 介面中的 Google 登入、綁定與登出
+        window.loginWithGoogle = async () => {
+          const provider = new firebase.auth.GoogleAuthProvider();
+          try {
+            setNotification("🔄 正在開通 Google 安全認證通道...");
+            if (auth.currentUser && auth.currentUser.isAnonymous) {
+              // 將本地訪客進度無縫綁定至 Google 帳戶中
+              await auth.currentUser.linkWithPopup(provider);
+              setNotification("🎉 綁定 Google 成功！您的本地學習進度已備份至雲端。");
+            } else {
+              await auth.signInWithPopup(provider);
+              setNotification("🎉 Google 帳戶登入成功，已恢復您的雲端學習數據！");
+            }
+          } catch (err) {
+            console.error("Google Authentication error:", err);
+            setNotification(`❌ 登入失敗: ${err.message}`);
+          }
+        };
+
+        window.logoutUser = async () => {
+          try {
+            await auth.signOut();
+            setNotification("👋 已安全登出雲端，恢復本地自學進度。");
+          } catch (err) {
+            console.error("Logout Error:", err);
+          }
+        };
+
+        // 綁定全域雲端寫入同步接口 (符合 Rule 1, 2, 3)
+        window.cloudSyncFunc = async (tracker, curriculum, quizzes, apiKeyVal) => {
+          if (!auth.currentUser) return;
+          try {
+            const userDocRef = db.doc(`artifacts/${appId}/users/${auth.currentUser.uid}/settings/progress`);
+            await userDocRef.set({
+              courseCompletionData: tracker,
+              curriculumDatabase: curriculum,
+              quizDatabase: quizzes,
+              customApiKey: apiKeyVal,
+              updatedAt: Date.now()
+            }, { merge: true });
+          } catch (err) {
+            console.error("Cloud synchronization failed:", err);
+          }
+        };
+
+        // RULE 3 - 優先採用平台提供的 Custom Token 進行安全性驗證，若失敗或到期，則無縫安全降級至訪客登入
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await auth.signInWithCustomToken(__initial_auth_token).catch(async (tokenError) => {
+              console.warn("Custom token invalid, falling back to anonymous:", tokenError);
+              await auth.signInAnonymously();
+            });
+          } else {
+            await auth.signInAnonymously();
+          }
+        } catch (authError) {
+          console.error("Failed to authenticate with Firebase auth:", authError);
+        }
+
+        // 監聽 Auth 狀態 (RULE 3 守護規則)
+        let progressUnsubscribe = null;
+        auth.onAuthStateChanged((user) => {
+          window.currentUser = user;
+          updateUserUI(user);
+          if (user) {
+            window.isCloudSyncActive = true;
+            
+            // 監聽並自動流入雲端進度 (RULE 1, 2, 3)
+            if (progressUnsubscribe) progressUnsubscribe();
+            const userDocRef = db.doc(`artifacts/${appId}/users/${user.uid}/settings/progress`);
+            progressUnsubscribe = userDocRef.onSnapshot((snapshot) => {
+              if (snapshot.exists) {
+                const cloudData = snapshot.data();
+                window.handleCloudDataIncoming(cloudData);
+              }
+            }, (err) => {
+              console.error("Firestore database connection failed:", err);
+            });
+          } else {
+            window.isCloudSyncActive = false;
+            if (progressUnsubscribe) progressUnsubscribe();
+            window.onGradeOrSemesterChange();
+          }
+        });
+
+      } catch (err) {
+        console.error("Firebase Initialization failed:", err);
+        setNotification("⚠️ 雲端資料庫初始化異常，已自動調降為本地儲存模式。");
+        updateUserUI(null);
+      }
+    };
+
+    // 更新使用者登入介面
+    function updateUserUI(user) {
+      const indicator = document.getElementById('auth-indicator');
+      const userNameEl = document.getElementById('auth-user-name');
+      const loginBtn = document.getElementById('auth-login-btn');
+      const logoutBtn = document.getElementById('auth-logout-btn');
+
+      if (!user) {
+        indicator.className = "w-2 h-2 rounded-full bg-rose-500 shrink-0";
+        userNameEl.textContent = "訪客模式 (進度僅存本機)";
+        loginBtn.classList.remove('hidden');
+        logoutBtn.classList.add('hidden');
+        return;
+      }
+
+      if (user.isAnonymous) {
+        indicator.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0";
+        userNameEl.textContent = "訪客帳戶 (建議綁定 Google)";
+        loginBtn.classList.remove('hidden');
+        loginBtn.textContent = "👤 綁定 Google 帳戶";
+        logoutBtn.classList.add('hidden');
+      } else {
+        indicator.className = "w-2 h-2 rounded-full bg-emerald-500 shrink-0";
+        userNameEl.textContent = `🟢 ${user.displayName || '五甲自學者'} (已同步)`;
+        loginBtn.classList.add('hidden');
+        logoutBtn.classList.remove('hidden');
+      }
+    }
+
+    // 啟動 Firebase 認證通道
+    document.addEventListener("DOMContentLoaded", () => {
+      setupFirebaseAndAuth();
+    });
+  </script>
+</body>
+</html>
