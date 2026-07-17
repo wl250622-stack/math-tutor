@@ -1382,15 +1382,20 @@
       }
     }
 
-    // --- 🤖 串接真實環境 Gemini 2.5 核心 ---
+    // --- 🤖 串接真實環境 Gemini 核心 (含自動備援與逾時保護) ---
     async function callGeminiAPI(promptText, base64Image = null) {
       // 如果本機有自訂金鑰，優先採用本機金鑰以解決離線/學校網域阻擋問題；否則使用平台注入的金鑰
       const finalKey = localCustomApiKey || apiKey || "";
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${finalKey}`;
-      
-      let payload;
+      if (!finalKey) {
+        throw new Error("尚未設定 API 金鑰，請先在上方「智慧 API 離線/自訂連線設定」貼上您的 Gemini API Key。");
+      }
+
+      // 🌟 自動備援模型清單：主力模型失敗時，自動切換至下一個嘗試
+      const modelFallbackList = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+
       const systemInstructionText = "你是一位國中數學金牌名師，正在使用溫柔幽默的『蘇格拉底教學引導法』。請務必遵循以下互動規律：1. 絕對不直接給出完整算式與答案。 2. 透過追問先修觀念（例如：分配律、完全平方等）或者給予一小步提示。 3. 在繁體中文回答中，數學公式一律使用標準 LaTeX 格式（內聯公式用 $ 包覆，例如 $x^2$，獨立公式用 $$ 包覆）。";
 
+      let payload;
       if (base64Image) {
         const mimeType = base64Image.split(';')[0].split(':')[1] || "image/png";
         const rawBase64 = base64Image.split(',')[1] || base64Image;
@@ -1416,35 +1421,59 @@
         };
       }
 
-      let delay = 1000;
       let lastError = null;
 
-      for (let i = 0; i < 5; i++) {
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            return result.candidates?.[0]?.content?.parts?.[0]?.text || "老師剛才想了一下，能請你再說一次嗎？";
-          } else {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error?.message || `HTTP 錯誤! 狀態碼: ${response.status}`);
+      for (const modelName of modelFallbackList) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${finalKey}`;
+        let delay = 1000;
+        const attemptsPerModel = 3; // 每個模型嘗試3次，失敗才換下一個模型，避免單一模型卡太久
+
+        for (let i = 0; i < attemptsPerModel; i++) {
+          try {
+            const fetchPromise = fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error("TIMEOUT_30S")), 30000);
+            });
+
+            const response = await Promise.race([fetchPromise, timeoutPromise]);
+            
+            if (response.ok) {
+              const result = await response.json();
+              return result.candidates?.[0]?.content?.parts?.[0]?.text || "老師剛才想了一下，能請你再說一次嗎？";
+            } else {
+              const errData = await response.json().catch(() => ({}));
+              const msg = errData.error?.message || `HTTP 錯誤! 狀態碼: ${response.status}`;
+              // 若是金鑰無效或權限問題，不需要重試其他次數，直接跳出換模型或結束
+              lastError = new Error(msg);
+              if (msg.includes("API key not valid") || msg.includes("API_KEY_INVALID") || response.status === 403) {
+                throw lastError;
+              }
+            }
+          } catch (err) {
+            if (err.message === "TIMEOUT_30S") {
+              lastError = new Error("連線逾時（30秒無回應），可能是網路狀況不佳或伺服器忙碌。");
+            } else {
+              lastError = err;
+            }
+            // 金鑰無效時，跳出所有重試迴圈，不用再嘗試其他模型
+            if (err.message && (err.message.includes("API key not valid") || err.message.includes("API_KEY_INVALID"))) {
+              throw lastError;
+            }
           }
-        } catch (err) {
-          lastError = err;
+
+          if (i < attemptsPerModel - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2;
+          }
         }
-        
-        if (i < 4) {
-          await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 2;
-        }
+        // 這個模型試完都失敗，換下一個模型繼續嘗試
       }
       
-      throw lastError || new Error("連線超時，請確認網路狀態。");
+      throw lastError || new Error("連線失敗，請確認網路狀態或稍後重試。");
     }
 
     // 發送學生提問至 Gemini
@@ -1504,16 +1533,24 @@
         if (loadingEl) loadingEl.remove();
         
         let customErrorMsg = "❌ 發生連線狀況: " + err.message + "，請稍後重試。";
-        if (err.message.includes("Failed to fetch") || err.name === "TypeError" || err.message.includes("API_KEY_INVALID") || err.message.includes("API key not valid")) {
+        if (err.message.includes("尚未設定 API 金鑰")) {
+          customErrorMsg = `
+            <div class="text-amber-400 font-bold space-y-1 text-xs">
+              <p>⚠️ 尚未設定 API 金鑰</p>
+              <p class="text-[10px] text-slate-400 leading-normal">
+                請先到上方「智慧 API 離線/自訂連線設定」貼上您專屬的免費 Gemini API Key 並儲存，才能開始使用 AI 家教喔！
+              </p>
+            </div>
+          `;
+        } else if (err.message.includes("Failed to fetch") || err.message.includes("Load failed") || err.name === "TypeError" || err.message.includes("API_KEY_INVALID") || err.message.includes("API key not valid")) {
           customErrorMsg = `
             <div class="text-rose-400 font-bold space-y-1 text-xs">
               <p>❌ 連線失敗 (API 連線通道受阻)</p>
               <p class="text-[10px] text-slate-400 leading-normal">
                 連線失敗可能的原因：<br>
                 1. 您的網頁瀏覽器安裝了廣告阻擋插件（如 Adblock、uBlock Origin）或開啟了 Brave 防護（Shield），或者是學校/家中的內部網路防火牆阻擋了 Google API 網域。<br>
-                2. 您目前正在<b>下載後的 HTML 檔案 (本地端)</b> 執行，此時由於沒有平台提供密鑰，API 連線會受限。<br><br>
-                <strong>💡 終極解決小撇步：</strong><br>
-                請直接在上方<b>「智慧 API 離線/自訂連線設定」</b>或直接在警告區塊貼上您專屬的免費 Gemini API Key，即可在任何網域、甚至下載後的檔案中流暢連線 AI 家教！
+                2. 您目前使用的 API 金鑰已失效或被撤銷，請確認金鑰狀態。<br><br>
+                <strong>💡 建議：</strong>先切換網路環境（例如改用行動網路）測試看看是否為網路阻擋所致，或到 Google AI Studio 確認金鑰是否仍然有效。
               </p>
             </div>
           `;
