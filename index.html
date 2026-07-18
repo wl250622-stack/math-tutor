@@ -272,7 +272,7 @@
         </div>
 
         <!-- 對話紀錄 -->
-        <div id="gemini-chat-log" class="flex-1 overflow-y-auto space-y-2 my-2 p-2 bg-slate-950 rounded-xl max-h-[220px] text-xs ios-scroll transition-all duration-300">
+        <div id="gemini-chat-log" class="flex-1 overflow-y-auto space-y-2 my-2 p-2 bg-slate-950 rounded-xl max-h-[220px] text-sm leading-relaxed ios-scroll transition-all duration-300">
           <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 text-slate-300 max-w-[90%]">
             ✨ 哈囉！我是你的 <strong>Gemini 數學引導家教</strong>。我已經完成 108 課綱與五甲國中專講系統的對話學習！<br>
             當你遇到困難時，可以點擊左側「📷 拍照上傳」，或直接在對話框內輸入疑問。我會一步步引導你思考，讓你真正透徹理解核心概念喔！
@@ -292,13 +292,13 @@
         <!-- 輸入與上傳 -->
         <div class="flex items-center gap-2 pt-1 border-t border-slate-800">
           <!-- 支援行動裝置原生拍照與相簿 -->
-          <input type="file" id="gemini-file-input" onchange="onPhotoSelected(this)" class="hidden" accept="image/*" capture="environment">
+          <input type="file" id="gemini-file-input" onchange="onPhotoSelected(this)" class="hidden" accept="image/*">
           
           <button onclick="document.getElementById('gemini-file-input').click()" class="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-xl text-base transition flex-shrink-0 active:scale-95" title="拍照或選擇照片">
             📷
           </button>
           
-          <input type="text" id="gemini-user-input" onkeydown="if(event.key==='Enter') sendGeminiMessage()" placeholder="我有哪裡不太懂..." class="flex-1 bg-slate-950 text-white text-xs border border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-teal-500 placeholder-slate-600">
+          <input type="text" id="gemini-user-input" onkeydown="if(event.key==='Enter') sendGeminiMessage()" placeholder="我有哪裡不太懂..." class="flex-1 bg-slate-950 text-white text-sm border border-slate-800 rounded-xl px-3 py-2 focus:outline-none focus:border-teal-500 placeholder-slate-600">
           
           <button id="gemini-send-btn" onclick="sendGeminiMessage()" class="bg-teal-600 hover:bg-teal-700 text-slate-950 font-black px-3 py-2 rounded-xl text-xs transition flex-shrink-0 active:scale-95">
             提問
@@ -346,7 +346,7 @@
         <p class="text-[11px] text-slate-400 leading-relaxed">可以直接對著課本、考卷或講義拍照上傳，Gemini 將智慧分析照片上的幾何、代數問題，並為您專屬訂製出一套結合多段語音點讀、黑板動態板書及測驗題的全新自訂單元！</p>
         
         <div class="flex items-center gap-3 pt-1">
-          <input type="file" id="course-photo-input" onchange="onCoursePhotoSelected(this)" class="hidden" accept="image/*" capture="environment">
+          <input type="file" id="course-photo-input" onchange="onCoursePhotoSelected(this)" class="hidden" accept="image/*">
           <button onclick="document.getElementById('course-photo-input').click()" class="bg-slate-850 hover:bg-slate-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95">
             <span>📸 拍攝或選擇課本照片</span>
           </button>
@@ -1100,6 +1100,7 @@
 
     function toggleAutoPlay() {
       if (isChalkAnimating) return;
+      unlockIOSSpeech();
       if (isAudioPlaying) stopTutorVoice(); else playSegment(0);
     }
     function stopTutorVoice() {
@@ -1326,6 +1327,56 @@
       const q = QUIZ_DATABASE[quizKey][quizIdx]; if (q) speakTutorFeedback(`這題老師來幫你分析。${q.voiceExplain}`);
     }
 
+    // 🌟 iOS Safari 語音解鎖機制：iOS 要求 speak() 必須貼近使用者手勢觸發，
+    // 否則在 await 非同步流程後呼叫會被瀏覽器靜音忽略。在使用者第一次點擊/觸控時先「暖機」一次。
+    let iosSpeechUnlocked = false;
+    function unlockIOSSpeech() {
+      if (iosSpeechUnlocked || !window.speechSynthesis) return;
+      try {
+        const unlockUtterance = new SpeechSynthesisUtterance(' ');
+        unlockUtterance.volume = 0;
+        window.speechSynthesis.speak(unlockUtterance);
+        iosSpeechUnlocked = true;
+      } catch (e) { /* 靜默失敗即可，不影響其他功能 */ }
+    }
+
+    // 🌟 KTV 歌詞式顯示效果：全文立即顯示（含正確的數學公式渲染），
+    // 依語音朗讀節奏，逐行由淡轉亮反白，讓眼睛可以跟著目前朗讀到的地方走
+    let karaokeTimers = [];
+    function clearKaraokeTimers() {
+      karaokeTimers.forEach(t => clearTimeout(t));
+      karaokeTimers = [];
+    }
+    function karaokeDisplay(el, rawText, rate = 1) {
+      clearKaraokeTimers();
+      const lines = rawText.split(/\n+/).filter(l => l.trim().length > 0);
+      if (lines.length === 0) { el.innerHTML = ""; return; }
+
+      el.innerHTML = lines
+        .map((line, idx) => `<span id="${el.id}-line-${idx}" class="karaoke-line text-slate-400">${line}</span>`)
+        .join('<br>');
+      renderMath(); // 立即渲染數學公式，之後只切換顏色不會再跳動畫面
+
+      const plainLens = lines.map(l => Math.max(l.replace(/\$/g, '').length, 1));
+      const totalLen = plainLens.reduce((a, b) => a + b, 0);
+      const charsPerSec = 4.5 * (rate || 1); // 中文語速估算基準，隨語速設定連動
+      const totalDurationMs = (totalLen / charsPerSec) * 1000;
+
+      let elapsed = 0;
+      lines.forEach((line, idx) => {
+        const lineDuration = (plainLens[idx] / totalLen) * totalDurationMs;
+        const startAt = elapsed;
+        const t = setTimeout(() => {
+          const cur = document.getElementById(`${el.id}-line-${idx}`);
+          if (cur) cur.className = "karaoke-line text-teal-300 font-bold";
+          const prev = document.getElementById(`${el.id}-line-${idx - 1}`);
+          if (prev) prev.className = "karaoke-line text-slate-500";
+        }, startAt);
+        karaokeTimers.push(t);
+        elapsed += lineDuration;
+      });
+    }
+
     function speakTutorFeedback(txt) {
       if (!window.speechSynthesis) return; window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(txt); if (selectedVoiceName) { const v = voices.find(x => x.name === selectedVoiceName); if (v) u.voice = v; }
@@ -1478,6 +1529,7 @@
 
     // 發送學生提問至 Gemini
     async function sendGeminiMessage() {
+      unlockIOSSpeech(); // 必須在使用者點擊當下同步呼叫，才能解鎖iOS語音
       const inputEl = document.getElementById('gemini-user-input');
       const text = inputEl.value.trim();
       if (!text && !uploadedPhotoBase64) return;
@@ -1520,11 +1572,13 @@
         const loadingEl = document.getElementById(loadingId);
         if (loadingEl) loadingEl.remove();
 
-        const formattedAnswer = geminiAnswerText.replace(/\n/g, "<br>");
-        chatLog.innerHTML += `<div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-slate-200 max-w-[95%] fade-in leading-relaxed">🤖 <strong>Gemini 老師：</strong><br>${formattedAnswer}</div>`;
+        const answerId = 'gemini-answer-' + Date.now();
+        chatLog.innerHTML += `<div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-slate-200 max-w-[95%] fade-in leading-relaxed">🤖 <strong>Gemini 老師：</strong><br><span id="${answerId}"></span></div>`;
         chatLog.scrollTop = chatLog.scrollHeight;
 
-        renderMath();
+        const answerSpan = document.getElementById(answerId);
+        // KTV歌詞式顯示：全文立即可讀，並依語速逐行反白，跟朗讀節奏同步
+        if (answerSpan) karaokeDisplay(answerSpan, geminiAnswerText, speechRate);
 
         const speechText = geminiAnswerText.replace(/<[^>]*>/g, "").replace(/\$/g, "");
         speakTutorFeedback(speechText);
@@ -1914,6 +1968,11 @@
 
       initSpeech(); 
       initStudentCanvas(); 
+
+      // 🌟 iOS Safari：使用者在頁面上第一次點擊/觸控時就先解鎖語音引擎，
+      // 這樣後續「自動播放」課程講解、Gemini家教回覆都能正常發出聲音
+      document.addEventListener("touchstart", unlockIOSSpeech, { once: true, passive: true });
+      document.addEventListener("click", unlockIOSSpeech, { once: true });
 
       // 本機快取進度與章節復原
       restoreLastSessionProgress();
